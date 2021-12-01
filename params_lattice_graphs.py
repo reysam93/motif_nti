@@ -17,14 +17,14 @@ SEED = 0
 
 # 
 GS = [
-    lambda a, b : cp.sum(a)/b,    # delta: 4e-2
+    #lambda a, b : cp.sum(a)/b,    # delta: 4e-2
     #lambda a, b : cp.sum(a**2)/b,  # delta: .7
-    #lambda a, b : cp.sum(cp.exp(-a))/b,    # delta: 3e-3
+    lambda a, b : cp.sum(cp.exp(-a))/b,    # delta: 3e-3
     #lambda a, b : cp.sum(cp.sqrt(a))/b,  # delta: 2e-2
 ]
 BOUNDS = [
     # lambda lamd, lamd_t, b : -2/b*lamd_t.T@lamd,
-    #lambda lamd, lamd_t, b : 1/b*cp.exp(-lamd_t).T@lamd,
+    lambda lamd, lamd_t, b : 1/b*cp.exp(-lamd_t).T@lamd,
     # lambda lamd, lamd_t, b : cp.sum(lamd/cp.sqrt(lamd_t))/(2*b),
 ]
 
@@ -36,9 +36,8 @@ def create_C(lambdas, M, V):
     return X@X.T/M
 
 
-def est_graph(id, alphas, betas, gammas, deltas, M,
-              cs, iters, A, lambdas, V):
-    C_hat = create_C(lambdas, M, V)
+def est_graph(id, alphas, betas, gammas, deltas, C_hat,
+              cs, iters, A, lambdas):
     A_n = np.linalg.norm(A, 'fro')
     lambs_n = np.linalg.norm(lambdas, 2)
     
@@ -64,13 +63,13 @@ def est_graph(id, alphas, betas, gammas, deltas, M,
                 A_hat = np.diag(np.diag(L_hat)) - L_hat
                 lamd_hat, _ = np.linalg.eigh(L_hat)
 
-                # err_A[i,j,k] = np.linalg.norm(A-A_hat,'fro')**2/A_n**2
-                # err_lam[i,j,k] = np.linalg.norm(lambdas-lamd_hat)**2/lambs_n**2
+                err_A[i,j,k] = np.linalg.norm(A-A_hat,'fro')**2/A_n**2
+                err_lam[i,j,k] = np.linalg.norm(lambdas-lamd_hat)**2/lambs_n**2
 
-                A_hat /= np.linalg.norm(A_hat, 'fro')
-                lamd_hat /= np.linalg.norm(lamd_hat, 2)
-                err_A[i,j,k] = np.linalg.norm(A/A_n-A_hat,'fro')**2
-                err_lam[i,j,k] = np.linalg.norm(lambdas/lambs_n-lamd_hat)**2
+                # A_hat /= np.linalg.norm(A_hat, 'fro')
+                # lamd_hat /= np.linalg.norm(lamd_hat, 2)
+                # err_A[i,j,k] = np.linalg.norm(A/A_n-A_hat,'fro')**2
+                # err_lam[i,j,k] = np.linalg.norm(lambdas/lambs_n-lamd_hat)**2
 
                 print('Cov-{}: Alpha {}, Beta {}, Gamma, {}: ErrA: {:.3f}'.
                       format(id, alpha, beta, gamma, err_A[i,j,k]))
@@ -110,12 +109,12 @@ if __name__ == "__main__":
     gammas = [0, .1, .5, 1, 2, 5, 10, 50]
 
     # Model params
-    n_covs = 10
+    n_covs = 12
     iters = 100
     M = 500
 
     #deltas  = [4e-2, .27, 3e-3, 2e-2]
-    deltas = [(4e-2)]
+    deltas = [(5e-3)]
 
     # Graph params
     n01 = 15
@@ -139,10 +138,10 @@ if __name__ == "__main__":
     err_lam = np.zeros((len(gammas), len(betas), len(alphas), n_covs))
     with Pool(processes=N_CPUS) as pool:
         for i in range(n_covs):
+            C_hat = create_C(lambdas, M, V)
             results.append(pool.apply_async(est_graph,
-                           args=[i, alphas, betas, gammas, deltas, M,
-                                 cs, iters, 
-                                 A, lambdas, V]))
+                           args=[i, alphas, betas, gammas, deltas, C_hat,
+                                 cs, iters, A, lambdas]))
 
         for i in range(n_covs):
             err_A[:,:,:,i], err_lam[:,:,:,i] = results[i].get()
@@ -182,4 +181,4 @@ if __name__ == "__main__":
         'err_lam': err_lam
     }
 
-    np.save('tmp\params_heat_M500_i100_err2', data)
+    np.save('tmp\params_heat_M500_i100_err', data)
