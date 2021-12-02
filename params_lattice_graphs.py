@@ -4,7 +4,7 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 
-from multiprocessing import Pool, cpu_count
+from joblib import Parallel, delayed
 import time
 
 import utils
@@ -13,19 +13,20 @@ import spectral_nti as snti
 
 # CONSTANTS
 N_CPUS = cpu_count()
-SEED = 0
+SEED = 28
 
-# 
 GS = [
     #lambda a, b : cp.sum(a)/b,    # delta: 4e-2
     #lambda a, b : cp.sum(a**2)/b,  # delta: .7
     lambda a, b : cp.sum(cp.exp(-a))/b,    # delta: 3e-3
     #lambda a, b : cp.sum(cp.sqrt(a))/b,  # delta: 2e-2
+    #lambda a, b : cp.sum(cp.exp(.5*a))/b,
 ]
 BOUNDS = [
-    # lambda lamd, lamd_t, b : -2/b*lamd_t.T@lamd,
+    #lambda lamd, lamd_t, b : -2/b*lamd_t.T@lamd,
     lambda lamd, lamd_t, b : 1/b*cp.exp(-lamd_t).T@lamd,
     # lambda lamd, lamd_t, b : cp.sum(lamd/cp.sqrt(lamd_t))/(2*b),
+    #lambda lamd, lamd_t, b : -.5/b*cp.exp(lamd_t).T@lamd,
 ]
 
 
@@ -104,17 +105,17 @@ if __name__ == "__main__":
     np.random.seed(SEED)
 
     # Regs
-    alphas = [0, 1e-4, 1e-2, .1] # [1-3, 1e-2, .1, .5, 1, 2, 5]
-    betas = np.arange(.25, 2.1, .25)
-    gammas = [0, .1, .5, 1, 2, 5, 10, 50]
+    alphas = [1e-4, 1e-3, 1e-2]
+    betas = np.arange(.25, 3.1, .25)
+    gammas = [0, .5, 1, 5, 10, 25, 50, 75, 100]
 
     # Model params
-    n_covs = 12
-    iters = 100
+    n_covs = 10
+    iters = 200
     M = 500
 
-    #deltas  = [4e-2, .27, 3e-3, 2e-2]
-    deltas = [(5e-3)]
+    #deltas  = [4e-2, .27, 3e-3, 2e-2, 6.5]
+    deltas = [3e-3]
 
     # Graph params
     n01 = 15
@@ -136,15 +137,12 @@ if __name__ == "__main__":
     results = []
     err_A = np.zeros((len(gammas), len(betas), len(alphas), n_covs))
     err_lam = np.zeros((len(gammas), len(betas), len(alphas), n_covs))
-    with Pool(processes=N_CPUS) as pool:
-        for i in range(n_covs):
-            C_hat = create_C(lambdas, M, V)
-            results.append(pool.apply_async(est_graph,
-                           args=[i, alphas, betas, gammas, deltas, C_hat,
-                                 cs, iters, A, lambdas]))
-
-        for i in range(n_covs):
-            err_A[:,:,:,i], err_lam[:,:,:,i] = results[i].get()
+    
+    pool = Parallel(n_jobs=N_CPUS)
+    results = pool(delayed(est_graph)(i, alphas, betas, gammas, deltas, create_C(lambdas, M, V),
+                                      cs, iters, A, lambdas) for i in range(n_covs))
+    for i, result in enumerate(results):
+        err_A[:,:,:,i], err_lam[:,:,:,i] = result
     print('----- {} mins -----'.format((time.time()-t)/60))
 
     mean_errA = np.mean(err_A, 3)
@@ -181,4 +179,4 @@ if __name__ == "__main__":
         'err_lam': err_lam
     }
 
-    np.save('tmp\params_heat_M500_i100_err', data)
+    np.save('tmp\params_heat_M500_i200_err', data)
