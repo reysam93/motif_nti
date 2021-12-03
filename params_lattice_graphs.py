@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
 from joblib import Parallel, delayed
 import time
+from os import cpu_count
 
 import utils
 import spectral_nti as snti
@@ -18,15 +19,17 @@ SEED = 28
 GS = [
     #lambda a, b : cp.sum(a)/b,    # delta: 4e-2
     #lambda a, b : cp.sum(a**2)/b,  # delta: .7
-    lambda a, b : cp.sum(cp.exp(-a))/b,    # delta: 3e-3
+    #lambda a, b : cp.sum(cp.exp(-a))/b,    # delta: 3e-3
     #lambda a, b : cp.sum(cp.sqrt(a))/b,  # delta: 2e-2
     #lambda a, b : cp.sum(cp.exp(.5*a))/b,
+    lambda a, b : cp.sum(.25*a**2-.75*a)/b,
 ]
 BOUNDS = [
     #lambda lamd, lamd_t, b : -2/b*lamd_t.T@lamd,
-    lambda lamd, lamd_t, b : 1/b*cp.exp(-lamd_t).T@lamd,
-    # lambda lamd, lamd_t, b : cp.sum(lamd/cp.sqrt(lamd_t))/(2*b),
+    #lambda lamd, lamd_t, b : 1/b*cp.exp(-lamd_t).T@lamd,
+    #lambda lamd, lamd_t, b : cp.sum(lamd/cp.sqrt(lamd_t))/(2*b),
     #lambda lamd, lamd_t, b : -.5/b*cp.exp(lamd_t).T@lamd,
+    lambda lamd, lamd_t, b: 1/b*(0.75-2*0.25*lamd_t).T@lamd,
 ]
 
 
@@ -105,9 +108,9 @@ if __name__ == "__main__":
     np.random.seed(SEED)
 
     # Regs
-    alphas = [1e-4, 1e-3, 1e-2]
-    betas = np.arange(.25, 3.1, .25)
-    gammas = [0, .5, 1, 5, 10, 25, 50, 75, 100]
+    alphas = [0, 1e-4, 1e-2]
+    betas = np.concatenate((np.arange(.25, 5.1, .25), [10, 15]))
+    gammas = [0, 1, 5, 10, 25, 50, 75, 100, 150, 250, 500]
 
     # Model params
     n_covs = 10
@@ -115,7 +118,7 @@ if __name__ == "__main__":
     M = 500
 
     #deltas  = [4e-2, .27, 3e-3, 2e-2, 6.5]
-    deltas = [3e-3]
+    deltas = [.04]
 
     # Graph params
     n01 = 15
@@ -134,15 +137,14 @@ if __name__ == "__main__":
     cs = utils.compute_cs(GS, lambdas0, lambdas)
     t = time.time()
     print("CPUs used:", N_CPUS)
-    results = []
     err_A = np.zeros((len(gammas), len(betas), len(alphas), n_covs))
     err_lam = np.zeros((len(gammas), len(betas), len(alphas), n_covs))
     
     pool = Parallel(n_jobs=N_CPUS)
-    results = pool(delayed(est_graph)(i, alphas, betas, gammas, deltas, create_C(lambdas, M, V),
+    errs = pool(delayed(est_graph)(i, alphas, betas, gammas, deltas, create_C(lambdas, M, V),
                                       cs, iters, A, lambdas) for i in range(n_covs))
-    for i, result in enumerate(results):
-        err_A[:,:,:,i], err_lam[:,:,:,i] = result
+    for i, err in enumerate(errs):
+        err_A[:,:,:,i], err_lam[:,:,:,i] = err
     print('----- {} mins -----'.format((time.time()-t)/60))
 
     mean_errA = np.mean(err_A, 3)
@@ -179,4 +181,4 @@ if __name__ == "__main__":
         'err_lam': err_lam
     }
 
-    np.save('tmp\params_heat_M500_i200_err', data)
+    np.save('tmp\params_noconst_M1000_i200_err', data)
