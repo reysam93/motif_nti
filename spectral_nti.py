@@ -31,9 +31,17 @@ def step3(d, lambdas, g_funcs, up_bounds, cs, rs):
     obj = cp.Minimize(cp.sum(-cp.log(lambdas_hat)) \
          + rs['beta']/2*cp.sum_squares(lambdas_hat-d) + up_bounds_obj)
 
-    prob = cp.Problem(obj, contraints)        
-    prob.solve()
-    lambdas = np.concatenate(([0], lambdas_hat.value))
+    prob = cp.Problem(obj, contraints)
+    try:      
+        prob.solve()
+    except cp.SolverError:
+                prob.status = 'solver_error'
+
+    if prob.status not in ['optimal', 'optimal_inaccurate']:
+        print('WARNING: problem status', prob.status)
+    else:
+        lambdas = np.concatenate(([0], lambdas_hat.value))
+
     return lambdas, prob.status
 
 
@@ -80,9 +88,10 @@ def SGL_MM(C, g_funcs, up_bounds, cs, regs, max_iters=100, epsilon=1e-4,
         d = np.diag(V.T@L@V)[1:]
         lambdas, prob_status = step3(d, lambdas, g_funcs, up_bounds, cs, regs)
         
-        if prob_status in ['infeasible', 'unbounded', 'infeasible_inaccurate']:
-            print('WARNING: problem status', prob_status)
-            return prev_L, prev_lam
+        # if prob_status not in ['optimal', 'optimal_inaccurate']:
+        # # if prob_status in ['infeasible', 'unbounded', 'infeasible_inaccurate']:
+        #     print('WARNING: problem status', prob_status)
+        #     return prev_L, prev_lam
 
         L_conv = np.linalg.norm(L-prev_L, 'fro')/np.linalg.norm(prev_L, 'fro')
         lambd_conv = np.linalg.norm(lambdas-prev_lam, 2)**2/np.linalg.norm(prev_lam, 2)**2
