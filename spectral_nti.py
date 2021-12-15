@@ -35,7 +35,8 @@ def step3(d, lambdas, g_funcs, up_bounds, cs, rs):
     try:      
         prob.solve()
     except cp.SolverError:
-                prob.status = 'solver_error'
+        print('WARNING: solver error.')
+        return lambdas, 'solver_error'
 
     if prob.status not in ['optimal', 'optimal_inaccurate']:
         print('WARNING: problem status', prob.status)
