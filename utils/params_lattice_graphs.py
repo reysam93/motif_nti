@@ -7,7 +7,9 @@ import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 import time
 from os import cpu_count
+import sys 
 
+sys.path.insert(0, '..')
 import utils
 import spectral_nti as snti
 
@@ -17,16 +19,16 @@ N_CPUS = cpu_count()
 SEED = 28
 
 GS = [
-    #lambda a, b : cp.sum(a)/b,    # delta: 4e-2
+    lambda a, b : cp.sum(a)/b,    # delta: 4e-2
     #lambda a, b : cp.sum(a**2)/b,  # delta: .7
-    lambda a, b : cp.sum(cp.exp(-a))/b,    # delta: 3e-3
+    # lambda a, b : cp.sum(cp.exp(-a))/b,    # delta: 3e-3
     #lambda a, b : cp.sum(cp.sqrt(a))/b,  # delta: 2e-2
     #lambda a, b : cp.sum(cp.exp(.5*a))/b,
     #lambda a, b : cp.sum(.25*a**2-.75*a)/b,
 ]
 BOUNDS = [
     #lambda lamd, lamd_t, b : -2/b*lamd_t.T@lamd,
-    lambda lamd, lamd_t, b : 1/b*cp.exp(-lamd_t).T@lamd,
+    # lambda lamd, lamd_t, b : 1/b*cp.exp(-lamd_t).T@lamd,
     #lambda lamd, lamd_t, b : cp.sum(lamd/cp.sqrt(lamd_t))/(2*b),
     #lambda lamd, lamd_t, b : -.5/b*cp.exp(lamd_t).T@lamd,
     # lambda lamd, lamd_t, b: 1/b*(0.75-2*0.25*lamd_t).T@lamd,
@@ -109,10 +111,10 @@ if __name__ == "__main__":
     # Model params
     n_covs = 10
     iters = 200
-    M = 900
+    M = 500
 
     #deltas  = [4e-2, .27, 3e-3, 2e-2, 6.5, 0.05]
-    deltas = [0.003]
+    deltas = [0.04]
 
     # Graph params
     n01 = 15
