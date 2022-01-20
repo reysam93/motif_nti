@@ -22,16 +22,16 @@ SEED2 = 14
 SAME_GRAPHS = False
 
 GS = [
-    lambda a, b : cp.sum(a)/b,    # delta: 4e-2
-    # lambda a, b : cp.sum(a**2)/b,  # delta: .7
-    # lambda a, b : cp.sum(cp.exp(-a))/b,    # delta: 3e-3
+    # lambda a, b : cp.sum(a)/b,    # delta: 4e-2
+    lambda a, b : cp.sum(a**2)/b,  # delta: .7
+    lambda a, b : cp.sum(cp.exp(-a))/b,    # delta: 3e-3
     #lambda a, b : cp.sum(cp.sqrt(a))/b,  # delta: 2e-2
     #lambda a, b : cp.sum(cp.exp(.5*a))/b,
     #lambda a, b : cp.sum(.25*a**2-.75*a)/b,
 ]
 BOUNDS = [
-    # lambda lamd, lamd_t, b : -2/b*lamd_t.T@lamd,
-    # lambda lamd, lamd_t, b : 1/b*cp.exp(-lamd_t).T@lamd,
+    lambda lamd, lamd_t, b : -2/b*lamd_t.T@lamd,
+    lambda lamd, lamd_t, b : 1/b*cp.exp(-lamd_t).T@lamd,
     #lambda lamd, lamd_t, b : cp.sum(lamd/cp.sqrt(lamd_t))/(2*b),
     # lambda lamd, lamd_t, b : -.5/b*cp.exp(lamd_t).T@lamd,
     # lambda lamd, lamd_t, b: 1/b*(0.75-2*0.25*lamd_t).T@lamd,
@@ -74,13 +74,13 @@ def est_graph(id, alphas, betas, gammas, deltas, N, k, p, M,
                                        regs, max_iters=iters)
                 lamd_hat, _ = np.linalg.eigh(L_hat)
 
-                err_L[i,j,k] = np.linalg.norm(L-L_hat,'fro')**2/L_n**2
-                err_lam[i,j,k] = np.linalg.norm(lambdas-lamd_hat)**2/lambs_n**2
+                # err_L[i,j,k] = np.linalg.norm(L-L_hat,'fro')**2/L_n**2
+                # err_lam[i,j,k] = np.linalg.norm(lambdas-lamd_hat)**2/lambs_n**2
 
-                # L_hat /= np.linalg.norm(L_hat, 'fro')
-                # lamd_hat /= np.linalg.norm(lamd_hat, 2)
-                # err_L[i,j,k] = np.linalg.norm(L/L_n-L_hat,'fro')**2
-                # err_lam[i,j,k] = np.linalg.norm(lambdas/lambs_n-lamd_hat)**2
+                L_hat /= np.linalg.norm(L_hat, 'fro')
+                lamd_hat /= np.linalg.norm(lamd_hat, 2)
+                err_L[i,j,k] = np.linalg.norm(L/L_n-L_hat,'fro')**2
+                err_lam[i,j,k] = np.linalg.norm(lambdas/lambs_n-lamd_hat)**2
 
                 print('Cov-{}: Alpha {}, Beta {}, Gamma, {}: ErrL: {:.3f}'.
                       format(id, alpha, beta, gamma, err_L[i,j,k]))
@@ -115,9 +115,9 @@ if __name__ == "__main__":
     np.random.seed(SEED)
 
     # Regs
-    alphas = [0, 1e-3]
-    betas = np.arange(.1, 2.6, .1)
-    gammas = [0]
+    alphas = [0, 1e-3, 1e-2]
+    betas = np.arange(.1, 1.1, .1)
+    gammas = [0, .01, .1, 1, 10, 50, 100, 1000, 2500, 5000]
 
 
     # Model params
@@ -126,7 +126,7 @@ if __name__ == "__main__":
     M = 250
 
     #deltas  = [4e-2, .27, 3e-3, 2e-2, 6.5, 0.05]
-    deltas = [0.005]
+    deltas = [0.3, 0.005]
 
     # Graph params
     N0 = 150
