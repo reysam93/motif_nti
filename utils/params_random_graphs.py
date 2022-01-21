@@ -173,7 +173,7 @@ if __name__ == "__main__":
              nx.random_partition_graph(graphs['block_sizes0'], graphs['p_in'], graphs['p_out']))
 
         if model['name'] == 'SGL':
-            model['conn_comp'] = B
+            model['conn_comp'] = graphs['B']
 
     if WEIGHTED:
         W0 = np.triu(np.random.rand(graphs['N0'], graphs['N0'])*3 + .1)
