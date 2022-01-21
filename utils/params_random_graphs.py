@@ -187,7 +187,7 @@ if __name__ == "__main__":
     err_L = np.zeros((len(gammas), len(betas), len(alphas), n_graphs))
     err_lam = np.zeros((len(gammas), len(betas), len(alphas), n_graphs))
     
-    pool = Parallel(n_jobs=1)
+    pool = Parallel(n_jobs=N_CPUS)
     errs = pool(delayed(est_graph)(i, alphas, betas, gammas, model, graphs, M,
                                    iters, lambdas0) for i in range(n_graphs))
     for i, err in enumerate(errs):
