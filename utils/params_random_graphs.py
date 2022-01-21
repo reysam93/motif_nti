@@ -18,8 +18,9 @@ import spectral_nti as snti
 N_CPUS = cpu_count()
 SEED = 28
 SEED2 = 14
-SAME_GRAPHS = False
-WEIGHTED = True
+# G_TYPE in ['SW', 'SBM']
+G_TYPE = 'SBM'
+WEIGHTED = False
 
 GS = [
     lambda a, b : cp.sum(a)/b,
@@ -50,30 +51,34 @@ MODELS = [
 ]
 
 
-def create_C(lambdas, M, V):
+def create_C(lambdas, M, V, B):
     N = lambdas.size
-    lambdas_aux = np.insert(1/np.sqrt(lambdas[1:]),0,0)
+    lambdas_aux = np.concatenate(([0]*B, 1/np.sqrt(lambdas[B:])))
     C_inv_sqrt = V@np.diag(lambdas_aux)@V.T
     # The shape of X is MxN, so it is X.T according to our notation
     X = np.random.multivariate_normal(np.zeros(N), C_inv_sqrt, M)
     return X.T@X/M
 
 
-def est_graph(id, alphas, betas, gammas, model, N, k, p, M, 
+def est_graph(id, alphas, betas, gammas, model, graphs, M, 
               iters, lambdas0):
     # Create graph
-    if SAME_GRAPHS:
-        A = nx.to_numpy_array(nx.watts_strogatz_graph(N, k, p, seed=SEED2))
-    else:
-        A = nx.to_numpy_array(nx.watts_strogatz_graph(N, k, p))
+    if G_TYPE == 'SW':
+        A = nx.to_numpy_array(
+            nx.watts_strogatz_graph(graphs['N'], graphs['k'], graphs['p'], seed=SEED))
+    elif G_TYPE == 'SBM':
+        A = nx.to_numpy_array(
+            nx.random_partition_graph(graphs['block_sizes0'], graphs['p_in'], graphs['p_out']))
+
     if WEIGHTED:
-        W = np.triu(np.random.rand(N, N)*3 + .1)
+        W = np.triu(np.random.rand(graphs['N'], graphs['N'])*3 + .1)
         A = A*(W + W.T)
+
     L = np.diag(np.sum(A, 0)) - A
     lambdas, V = np.linalg.eigh(L)
     L_n = np.linalg.norm(L, 'fro')
     lambs_n = np.linalg.norm(lambdas, 2)
-    C_hat = create_C(lambdas, M, V)
+    C_hat = create_C(lambdas, M, V, graphs['B'])
 
     if model['name'] == 'MGL-Tr=1':
         model['cs'] = 1
@@ -131,12 +136,13 @@ def plot_err(err, alphas, betas, gammas, label='L'):
 
 if __name__ == "__main__":
     np.random.seed(SEED)
+    assert G_TYPE in ['SW', 'SBM'], 'Unkown graph type.'
 
     # Regs
     model = MODELS[1]
-    alphas = [0, .001, .01, .1]
-    betas = np.concatenate((np.arange(.1, .6, .1), [1, 5, 10]))
-    gammas = [0, 1, 5, 10, 25, 50, 100]
+    alphas = [0]
+    betas = np.concatenate((np.arange(.1, 1.1, .1), [5, 10, 25, 50]))
+    gammas = [1, 5, 10, 25, 50, 100, 500, 1000, 5000, 10000]
     print('Target model:', model['name'])
 
     # Model params
@@ -144,32 +150,46 @@ if __name__ == "__main__":
     iters = 200
     M = 500
 
-    # Graph params
-    N0 = 150
-    N = 100
-    k = 8
-    p = .1
-
     # Create graphs
-    A0 = nx.to_numpy_array(nx.watts_strogatz_graph(N0, k, p, seed=SEED))
+    graphs = {'B': 1}
+    if G_TYPE == 'SW':
+        # SW graph params
+        graphs['N0'] = 150
+        graphs['N'] = 100
+        graphs['k'] = 16
+        graphs['p'] = .1
+        A0 = nx.to_numpy_array(
+             nx.watts_strogatz_graph(graphs['N0'], graphs['k'], graphs['p'], seed=SEED))
+    elif G_TYPE == 'SBM':
+        # SBM graph params
+        graphs['B'] = 4
+        graphs['block_sizes0'] = [38]*4
+        graphs['block_sizes'] = [25]*4
+        graphs['p_in'] = .2
+        graphs['p_out'] = 0
+        graphs['N0'] = sum(graphs['block_sizes0'])
+        graphs['N'] = sum(graphs['block_sizes'])
+        A0 = nx.to_numpy_array(
+             nx.random_partition_graph(graphs['block_sizes0'], graphs['p_in'], graphs['p_out']))
+
+        if model['name'] == 'SGL':
+            model['conn_comp'] = B
+
     if WEIGHTED:
-        W0 = np.triu(np.random.rand(N0, N0)*3 + .1)
+        W0 = np.triu(np.random.rand(graphs['N0'], graphs['N0'])*3 + .1)
         A0 = A0*(W0 + W0.T)
+
     L0 = np.diag(np.sum(A0, 0)) - A0
     lambdas0, _ = np.linalg.eigh(L0)
-
-    A = nx.to_numpy_array(nx.watts_strogatz_graph(N, k, p, seed=SEED))
-    L = np.diag(np.sum(A, 0)) - A
-    lambdas, V = np.linalg.eigh(L)
 
     t = time.time()
     print("CPUs used:", N_CPUS)
     err_L = np.zeros((len(gammas), len(betas), len(alphas), n_graphs))
     err_lam = np.zeros((len(gammas), len(betas), len(alphas), n_graphs))
     
-    pool = Parallel(n_jobs=N_CPUS)
-    errs = pool(delayed(est_graph)(i, alphas, betas, gammas, model, N, k, p, M,
-                                      iters, lambdas0) for i in range(n_graphs))
+    pool = Parallel(n_jobs=1)
+    errs = pool(delayed(est_graph)(i, alphas, betas, gammas, model, graphs, M,
+                                   iters, lambdas0) for i in range(n_graphs))
     for i, err in enumerate(errs):
         err_L[:,:,:,i], err_lam[:,:,:,i] = err
     print('----- {} mins -----'.format((time.time()-t)/60))
