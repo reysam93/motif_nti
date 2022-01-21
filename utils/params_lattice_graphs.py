@@ -19,19 +19,33 @@ N_CPUS = cpu_count()
 SEED = 28
 
 GS = [
-    lambda a, b : cp.sum(a)/b,    # delta: 4e-2
-    #lambda a, b : cp.sum(a**2)/b,  # delta: .7
-    # lambda a, b : cp.sum(cp.exp(-a))/b,    # delta: 3e-3
-    #lambda a, b : cp.sum(cp.sqrt(a))/b,  # delta: 2e-2
-    #lambda a, b : cp.sum(cp.exp(.5*a))/b,
-    #lambda a, b : cp.sum(.25*a**2-.75*a)/b,
+    lambda a, b : cp.sum(a)/b,
+    lambda a, b : cp.sum(a**2)/b,
+    lambda a, b : cp.sum(cp.exp(-a))/b,
+    lambda a, b : cp.sum(cp.sqrt(a))/b,
+    lambda a, b : cp.sum(.25*a**2-.75*a)/b,
 ]
 BOUNDS = [
-    #lambda lamd, lamd_t, b : -2/b*lamd_t.T@lamd,
-    # lambda lamd, lamd_t, b : 1/b*cp.exp(-lamd_t).T@lamd,
-    #lambda lamd, lamd_t, b : cp.sum(lamd/cp.sqrt(lamd_t))/(2*b),
-    #lambda lamd, lamd_t, b : -.5/b*cp.exp(lamd_t).T@lamd,
-    # lambda lamd, lamd_t, b: 1/b*(0.75-2*0.25*lamd_t).T@lamd,
+    lambda lamd, lamd_t, b : -2/b*lamd_t.T@lamd,
+    lambda lamd, lamd_t, b : 1/b*cp.exp(-lamd_t).T@lamd,
+    lambda lamd, lamd_t, b : cp.sum(lamd/cp.sqrt(lamd_t))/(2*b),
+    lambda lamd, lamd_t, b: 1/b*(0.75-2*0.25*lamd_t).T@lamd,
+]
+
+DELTAS  = [.04, .27, .003, .02, 0.05]
+
+MODELS = [
+    # Ours
+    {'name': 'MGL-Tr', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': DELTAS[0]}},
+    {'name': 'MGL-Sq', 'gs': GS[1], 'bounds': BOUNDS[0], 'regs': {'deltas': DELTAS[1]}},
+    {'name': 'MGL-Heat', 'gs': GS[2], 'bounds': BOUNDS[1], 'regs': {'deltas': DELTAS[2]}},
+    {'name': 'MGL-Sqrt', 'gs': GS[3], 'bounds': BOUNDS[2], 'regs': {'deltas': DELTAS[3]}},
+    {'name': 'MGL-Poly', 'gs': GS[4], 'bounds': BOUNDS[3], 'regs': {'deltas': DELTAS[4]}},
+
+    # Baselines
+    {'name': 'GLasso', 'gs': [], 'bounds': [], 'regs': {}},
+    {'name': 'MGL-Tr=1', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': DELTAS[0]}},
+    {'name': 'SGL', 'gs': [], 'regs': {'c1': .01, 'c2': 10, 'conn_comp': 1}},  # c1 and c2 obtained from min/max eigenvals 
 ]
 
 
@@ -42,34 +56,32 @@ def create_C(lambdas, M, V):
     return X@X.T/M
 
 
-def est_graph(id, alphas, betas, gammas, deltas, C_hat,
-              cs, iters, A, lambdas):
+def est_graph(id, alphas, betas, gammas, C_hat,
+              model, iters, A, lambdas):
     A_n = np.linalg.norm(A, 'fro')
     lambs_n = np.linalg.norm(lambdas, 2)
     
-    regs = {'alpha': 0, 'beta': 0, 'gamma': 0, 'deltas': deltas}
-
     err_A = np.zeros((len(gammas), len(betas), len(alphas)))
     err_lam = np.zeros((len(gammas), len(betas), len(alphas)))
     for k, alpha in enumerate(alphas):
-        regs['alpha'] = alpha
+        model['regs']['alpha'] = alpha
         for j, beta in enumerate(betas):
-            regs['beta'] = beta
+            model['regs']['beta'] = beta
             for i, gamma in enumerate(gammas):
-                regs['gamma'] = gamma
-                L_hat, _ = snti.SGL_MM(C_hat, GS, BOUNDS, cs,
-                                       regs, max_iters=iters)
+                model['regs']['gamma'] = gamma
+                
+                L_hat, lamd_hat = utils.est_graph(C_hat, model, iters)
 
                 A_hat = np.diag(np.diag(L_hat)) - L_hat
                 lamd_hat, _ = np.linalg.eigh(L_hat)
 
-                # err_A[i,j,k] = np.linalg.norm(A-A_hat,'fro')**2/A_n**2
-                # err_lam[i,j,k] = np.linalg.norm(lambdas-lamd_hat)**2/lambs_n**2
+                err_A[i,j,k] = np.linalg.norm(A-A_hat,'fro')**2/A_n**2
+                err_lam[i,j,k] = np.linalg.norm(lambdas-lamd_hat)**2/lambs_n**2
 
-                A_hat /= np.linalg.norm(A_hat, 'fro')
-                lamd_hat /= np.linalg.norm(lamd_hat, 2)
-                err_A[i,j,k] = np.linalg.norm(A/A_n-A_hat,'fro')**2
-                err_lam[i,j,k] = np.linalg.norm(lambdas/lambs_n-lamd_hat)**2
+                # A_hat /= np.linalg.norm(A_hat, 'fro')
+                # lamd_hat /= np.linalg.norm(lamd_hat, 2)
+                # err_A[i,j,k] = np.linalg.norm(A/A_n-A_hat,'fro')**2
+                # err_lam[i,j,k] = np.linalg.norm(lambdas/lambs_n-lamd_hat)**2
 
                 print('Cov-{}: Alpha {}, Beta {}, Gamma, {}: ErrA: {:.3f}'.
                       format(id, alpha, beta, gamma, err_A[i,j,k]))
@@ -77,7 +89,7 @@ def est_graph(id, alphas, betas, gammas, deltas, C_hat,
 
 
 def plot_err(err, alphas, betas, gammas, label='A'):
-    if len(BOUNDS) == 0:
+    if len(gammas) == 1:
         # Without upper bounds, gamma does not matter
         plt.figure()
         plt.imshow(err[0,:,:])
@@ -97,24 +109,23 @@ def plot_err(err, alphas, betas, gammas, label='A'):
             plt.xticks(np.arange(len(betas)), betas)
             plt.ylabel('Gamma')
             plt.yticks(np.arange(len(gammas)), gammas)
-            plt.title('Err {}, Alpha: {}'.format(label, alphas[k]))
+            plt.title('Err {}, Alpha: {}'.format(label, alpha))
 
 
 if __name__ == "__main__":
     np.random.seed(SEED)
 
     # Regs
-    alphas = [1e-3, 5e-3]
-    betas = [0.5]  #np.arange(.25, 3.1, .25)
-    gammas = [0, 10, 25, 50, 100, 150]
+    model = MODELS[7]
+    alphas = [0]
+    betas = [.25, .5, 1, 5, 10, 20]  #np.arange(.25, 3.1, .25)
+    gammas = [0]
+    print('Target model:', model['name'])
 
     # Model params
     n_covs = 10
     iters = 200
-    M = 500
-
-    #deltas  = [4e-2, .27, 3e-3, 2e-2, 6.5, 0.05]
-    deltas = [0.04]
+    M = 1000
 
     # Graph params
     n01 = 15
@@ -130,15 +141,19 @@ if __name__ == "__main__":
     L = np.diag(np.sum(A, 0)) - A
     lambdas, V = np.linalg.eigh(L)
 
-    cs = utils.compute_cs(GS, lambdas0, lambdas)
+    if model['name'] == 'MGL-Tr=1':
+        model['cs'] = 1
+    else:
+         model['cs'] = utils.compute_cs(model['gs'], lambdas0, lambdas)
+
     t = time.time()
     print("CPUs used:", N_CPUS)
     err_A = np.zeros((len(gammas), len(betas), len(alphas), n_covs))
     err_lam = np.zeros((len(gammas), len(betas), len(alphas), n_covs))
     
     pool = Parallel(n_jobs=N_CPUS)
-    errs = pool(delayed(est_graph)(i, alphas, betas, gammas, deltas, create_C(lambdas, M, V),
-                                      cs, iters, A, lambdas) for i in range(n_covs))
+    errs = pool(delayed(est_graph)(i, alphas, betas, gammas, create_C(lambdas, M, V),
+                                   model, iters, A, lambdas) for i in range(n_covs))
     for i, err in enumerate(errs):
         err_A[:,:,:,i], err_lam[:,:,:,i] = err
     print('----- {} mins -----'.format((time.time()-t)/60))
@@ -171,7 +186,6 @@ if __name__ == "__main__":
         'alphas': alphas,
         'betas': betas,
         'gammas': gammas,
-        'deltas': deltas,
         'iters': iters,
         'err_A': err_A,
         'err_lam': err_lam

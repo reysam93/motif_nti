@@ -4,10 +4,10 @@ import numpy as np
 import utils
 
 
-def SGL(C, g_funcs, cs, regs, max_iters=100, epsilon=1e-6, verbose=False):
-    regs_aux = regs.copy()
-    regs_aux['gamma'] = 0
-    return SGL_MM(C, g_funcs, [], cs, regs_aux, max_iters, epsilon, verbose)
+# def SGL(C, g_funcs, cs, regs, max_iters=100, epsilon=1e-6, verbose=False):
+#     regs_aux = regs.copy()
+#     regs_aux['gamma'] = 0
+#     return SGL_MM(C, g_funcs, [], cs, regs_aux, max_iters, epsilon, verbose)
 
 
 def step3(d, lambdas, g_funcs, up_bounds, cs, rs):
@@ -46,8 +46,11 @@ def step3(d, lambdas, g_funcs, up_bounds, cs, rs):
     return lambdas, prob.status
 
 
-def SGL_MM(C, g_funcs, up_bounds, cs, regs, max_iters=100, epsilon=1e-4,
+def MGL(C, g_funcs, up_bounds, cs, regs, max_iters=100, epsilon=1e-4,
            verbose=False):
+    """
+    Motif graph learning algorithm.
+    """
     N = C.shape[0]
 
     # Check inputs
@@ -71,7 +74,6 @@ def SGL_MM(C, g_funcs, up_bounds, cs, regs, max_iters=100, epsilon=1e-4,
     prev_L = L
     prev_lam = lambdas
 
-    # prev_opt_val = 1e6
     for t in range(max_iters):
         # Step 1: closed form solution
         z = utils.Lstar_op(V@np.diag(lambdas)@V.T-1/regs['beta']*K)
@@ -88,11 +90,6 @@ def SGL_MM(C, g_funcs, up_bounds, cs, regs, max_iters=100, epsilon=1e-4,
 
         d = np.diag(V.T@L@V)[1:]
         lambdas, prob_status = step3(d, lambdas, g_funcs, up_bounds, cs, regs)
-        
-        # if prob_status not in ['optimal', 'optimal_inaccurate']:
-        # # if prob_status in ['infeasible', 'unbounded', 'infeasible_inaccurate']:
-        #     print('WARNING: problem status', prob_status)
-        #     return prev_L, prev_lam
 
         L_conv = np.linalg.norm(L-prev_L, 'fro')/np.linalg.norm(prev_L, 'fro')
         lambd_conv = np.linalg.norm(lambdas-prev_lam, 2)**2/np.linalg.norm(prev_lam, 2)**2
@@ -116,41 +113,41 @@ def SGL_MM(C, g_funcs, up_bounds, cs, regs, max_iters=100, epsilon=1e-4,
     return L, lambdas
 
 
-def SGL_trace(C, c, regs):
-    N = C.shape[0]
-    alpha = regs['alpha']
-    delta = regs['deltas']
+# def SGL_trace(C, c, regs):
+#     N = C.shape[0]
+#     alpha = regs['alpha']
+#     delta = regs['deltas']
     
-    K = C + alpha*(2*np.eye(N)-np.ones((N,N)))
+#     K = C + alpha*(2*np.eye(N)-np.ones((N,N)))
 
-    L_hat = cp.Variable((N, N), PSD=True)
-    constraint = [(cp.trace(L_hat)/N-c)**2 <= delta,
-                  cp.sum(L_hat, axis=0) == 0,
-                  L_hat[np.eye(N, dtype=bool)] >= 0,
-                  L_hat[~np.eye(N, dtype=bool) <= 0]]
+#     L_hat = cp.Variable((N, N), PSD=True)
+#     constraint = [(cp.trace(L_hat)/N-c)**2 <= delta,
+#                   cp.sum(L_hat, axis=0) == 0,
+#                   L_hat[np.eye(N, dtype=bool)] >= 0,
+#                   L_hat[~np.eye(N, dtype=bool) <= 0]]
 
-    obj = cp.Minimize(-cp.log_det(L_hat)+cp.trace(K@L_hat))
-    prob = cp.Problem(obj, constraint)
-    prob.solve()
+#     obj = cp.Minimize(-cp.log_det(L_hat)+cp.trace(K@L_hat))
+#     prob = cp.Problem(obj, constraint)
+#     prob.solve()
 
-    return L_hat.value
+#     return L_hat.value
 
 
-def SGL_no_const(C, alpha):
-    N = C.shape[0]
+# def SGL_no_const(C, alpha):
+#     N = C.shape[0]
     
-    K = C + alpha*(2*np.eye(N)-np.ones((N,N)))
+#     K = C + alpha*(2*np.eye(N)-np.ones((N,N)))
 
-    L_hat = cp.Variable((N, N), symmetric=True)
-    constraint = [cp.sum(L_hat, axis=0) == 0,
-                  L_hat[np.diag_indices(N)] >= 0,
-                  L_hat[~np.eye(N,dtype=bool) <= 0]]
+#     L_hat = cp.Variable((N, N), symmetric=True)
+#     constraint = [cp.sum(L_hat, axis=0) == 0,
+#                   L_hat[np.diag_indices(N)] >= 0,
+#                   L_hat[~np.eye(N,dtype=bool) <= 0]]
 
-    obj = cp.Minimize(-cp.log_det(L_hat)+cp.trace(K@L_hat))
-    prob = cp.Problem(obj, constraint)
-    prob.solve()
+#     obj = cp.Minimize(-cp.log_det(L_hat)+cp.trace(K@L_hat))
+#     prob = cp.Problem(obj, constraint)
+#     prob.solve()
 
-    return L_hat.value
+#     return L_hat.value
 
 
 

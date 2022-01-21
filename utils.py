@@ -1,4 +1,8 @@
 import numpy as np
+from sklearn.covariance import graphical_lasso
+
+import spectral_nti as snti
+import baselines
 
 # Laplacian operator    
 def L_op(w):
@@ -79,11 +83,39 @@ def compute_cs(gs, lambdas0, lambdas, verbose=False):
         gs = [gs]
 
     cs = np.zeros(len(gs))
+    errs = np.zeros(len(gs))
     for i, g in enumerate(gs):
         cs[i] = g(lambdas0[1:], N0).value
         c_aux = g(lambdas[1:], N).value
-        err = c_aux-cs[i]
+        errs[i] = c_aux-cs[i]
         if verbose:
             print('\tc-{}: c: {:.3f}\tc0: {:.3f}\terr: {:.6f}\terr norm: {:.6f}'
-                .format(i, c_aux, cs[i], err, err/cs[i]))
-    return cs, err
+                .format(i, c_aux, cs[i], errs[i], errs[i]/cs[i]))
+    return cs, np.abs(errs)
+
+
+def est_graph(C_hat, model, iters):
+    if model['name'] == 'Pinv':
+        L_hat = np.linalg.pinv(C_hat)
+
+    elif model['name'] == 'GLasso':
+        if 'alpha' in model:
+            alpha = model['alpha']
+        else:
+            alpha = model['regs']['alpha']
+        try:
+            _, L_hat = graphical_lasso(C_hat, alpha, max_iter=iters)
+        except FloatingPointError:
+            print('WARNING: Floating Point Error: Non SPD result.')
+            return np.ones(C_hat.shape), np.ones(C_hat.shape[0])
+     
+    elif model['name'] == 'SGL':
+        L_hat, _ = baselines.SGL(C_hat, model['regs'], max_iters=iters)
+
+    else:
+        L_hat, _ = snti.MGL(C_hat, model['gs'], model['bounds'], model['cs'],
+                            model['regs'], max_iters=iters)
+
+    lamd_hat, _ = np.linalg.eigh(L_hat)
+
+    return L_hat, lamd_hat

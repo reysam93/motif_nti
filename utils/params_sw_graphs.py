@@ -1,5 +1,4 @@
 
-from random import seed
 import cvxpy as cp
 import networkx as nx
 import numpy as np
@@ -22,19 +21,31 @@ SEED2 = 14
 SAME_GRAPHS = False
 
 GS = [
-    # lambda a, b : cp.sum(a)/b,    # delta: 4e-2
-    lambda a, b : cp.sum(a**2)/b,  # delta: .7
-    lambda a, b : cp.sum(cp.exp(-a))/b,    # delta: 3e-3
-    #lambda a, b : cp.sum(cp.sqrt(a))/b,  # delta: 2e-2
-    #lambda a, b : cp.sum(cp.exp(.5*a))/b,
-    #lambda a, b : cp.sum(.25*a**2-.75*a)/b,
+    lambda a, b : cp.sum(a)/b,
+    lambda a, b : cp.sum(a**2)/b,
+    lambda a, b : cp.sum(cp.exp(-a))/b,
+    lambda a, b : cp.sum(.25*a**2-.75*a)/b,
 ]
 BOUNDS = [
     lambda lamd, lamd_t, b : -2/b*lamd_t.T@lamd,
     lambda lamd, lamd_t, b : 1/b*cp.exp(-lamd_t).T@lamd,
-    #lambda lamd, lamd_t, b : cp.sum(lamd/cp.sqrt(lamd_t))/(2*b),
-    # lambda lamd, lamd_t, b : -.5/b*cp.exp(lamd_t).T@lamd,
-    # lambda lamd, lamd_t, b: 1/b*(0.75-2*0.25*lamd_t).T@lamd,
+    lambda lamd, lamd_t, b: 1/b*(0.75-2*0.25*lamd_t).T@lamd,
+]
+
+# Create deltas as a dict indexed by k?
+DELTAS = [1e-3, .3, 0.005, .1]
+
+MODELS = [
+    # Ours
+    {'name': 'MGL-Tr', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': DELTAS[0]}},
+    {'name': 'MGL-Sq', 'gs': GS[1], 'bounds': BOUNDS[0], 'regs': {'deltas': DELTAS[1]}},
+    {'name': 'MGL-Heat', 'gs': GS[2], 'bounds': BOUNDS[1], 'regs': {'deltas': DELTAS[2]}},
+    {'name': 'MGL-Poly', 'gs': GS[3], 'bounds': BOUNDS[2], 'regs': {'deltas': DELTAS[3]}},
+
+    # Baselines
+    {'name': 'GLasso', 'gs': [], 'bounds': [], 'regs': {}},
+    {'name': 'MGL-Tr=1', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': DELTAS[0]}},
+    {'name': 'SGL', 'gs': [], 'regs': {'c1': .1, 'c2': 30, 'conn_comp': 1}},  # c1 and c2 obtained from min/max eigenvals 
 ]
 
 
@@ -45,7 +56,7 @@ def create_C(lambdas, M, V):
     return X@X.T/M
 
 
-def est_graph(id, alphas, betas, gammas, deltas, N, k, p, M, 
+def est_graph(id, alphas, betas, gammas, model, N, k, p, M, 
               iters, lambdas0):
     # Create graph
     if SAME_GRAPHS:
@@ -54,25 +65,25 @@ def est_graph(id, alphas, betas, gammas, deltas, N, k, p, M,
         A = nx.to_numpy_array(nx.watts_strogatz_graph(N, k, p))
     L = np.diag(np.sum(A, 0)) - A
     lambdas, V = np.linalg.eigh(L)
-    cs = utils.compute_cs(GS, lambdas0, lambdas)
-    C_hat = create_C(lambdas, M, V)
-
     L_n = np.linalg.norm(L, 'fro')
     lambs_n = np.linalg.norm(lambdas, 2)
+    C_hat = create_C(lambdas, M, V)
 
-    regs = {'alpha': 0, 'beta': 0, 'gamma': 0, 'deltas': deltas}
+    if model['name'] == 'MGL-Tr=1':
+        model['cs'] = 1
+    else:
+        model['cs'] = utils.compute_cs(model['gs'], lambdas0, lambdas)    
+
     err_L = np.zeros((len(gammas), len(betas), len(alphas)))
     err_lam = np.zeros((len(gammas), len(betas), len(alphas)))
     for k, alpha in enumerate(alphas):
-        regs['alpha'] = alpha
+        model['regs']['alpha'] = alpha
         for j, beta in enumerate(betas):
-            regs['beta'] = beta
+            model['regs']['beta'] = beta
             for i, gamma in enumerate(gammas):
-                regs['gamma'] = gamma
-                
-                L_hat, _ = snti.SGL_MM(C_hat, GS, BOUNDS, cs,
-                                       regs, max_iters=iters)
-                lamd_hat, _ = np.linalg.eigh(L_hat)
+                model['regs']['gamma'] = gamma
+
+                L_hat, lamd_hat = utils.est_graph(C_hat, model, iters)
 
                 # err_L[i,j,k] = np.linalg.norm(L-L_hat,'fro')**2/L_n**2
                 # err_lam[i,j,k] = np.linalg.norm(lambdas-lamd_hat)**2/lambs_n**2
@@ -84,11 +95,12 @@ def est_graph(id, alphas, betas, gammas, deltas, N, k, p, M,
 
                 print('Cov-{}: Alpha {}, Beta {}, Gamma, {}: ErrL: {:.3f}'.
                       format(id, alpha, beta, gamma, err_L[i,j,k]))
+    plt.show()
     return err_L, err_lam
 
 
 def plot_err(err, alphas, betas, gammas, label='L'):
-    if len(BOUNDS) == 0:
+    if len(gammas) == 1:
         # Without upper bounds, gamma does not matter
         plt.figure()
         plt.imshow(err[0,:,:])
@@ -115,18 +127,16 @@ if __name__ == "__main__":
     np.random.seed(SEED)
 
     # Regs
-    alphas = [0, 1e-3, 1e-2]
-    betas = np.arange(.1, 1.1, .1)
-    gammas = [0, .01, .1, 1, 10, 50, 100, 1000, 2500, 5000]
-
+    model = MODELS[6]
+    alphas = [0]
+    betas = [.1, .5, 1, 20] #np.arange(.4, .7, .1)
+    gammas = [0]
+    print('Target model:', model['name'])
 
     # Model params
     n_graphs = 10
-    iters = 200
-    M = 250
-
-    #deltas  = [4e-2, .27, 3e-3, 2e-2, 6.5, 0.05]
-    deltas = [0.3, 0.005]
+    iters = 100
+    M = 500
 
     # Graph params
     N0 = 150
@@ -149,7 +159,7 @@ if __name__ == "__main__":
     err_lam = np.zeros((len(gammas), len(betas), len(alphas), n_graphs))
     
     pool = Parallel(n_jobs=N_CPUS)
-    errs = pool(delayed(est_graph)(i, alphas, betas, gammas, deltas, N, k, p, M,
+    errs = pool(delayed(est_graph)(i, alphas, betas, gammas, model, N, k, p, M,
                                       iters, lambdas0) for i in range(n_graphs))
     for i, err in enumerate(errs):
         err_L[:,:,:,i], err_lam[:,:,:,i] = err
@@ -175,18 +185,18 @@ if __name__ == "__main__":
     print('Min err Lambd (Alpha: {:.3g}, Beta: {:.3g}, Gamma: {:.3g}): {:.6f}\t Err in L: {:.6f}'
         .format(alphas[idx[1]], betas[idx[0]], 0, mean_errl[0,:,:][idx], mean_errA[0,:,:][idx]))
 
-    plot_err(mean_errA, alphas, betas, gammas)
-    plot_err(mean_errl, alphas, betas, gammas, label='Lambd2')
+    plot_err(mean_errA, model, alphas, betas, gammas)
+    plot_err(mean_errl, model, alphas, betas, gammas, label='Lambd2')
     plt.show()
 
-    data = {
-        'alphas': alphas,
-        'betas': betas,
-        'gammas': gammas,
-        'deltas': deltas,
-        'iters': iters,
-        'err_L': err_L,
-        'err_lam': err_lam
-    }
+    # data = {
+    #     'alphas': alphas,
+    #     'betas': betas,
+    #     'gammas': gammas,
+    #     # 'deltas': deltas,
+    #     'iters': iters,
+    #     'err_L': err_L,
+    #     'err_lam': err_lam
+    # }
 
     # np.save('tmp\params_heat_M1000_i200_err', data)
