@@ -19,6 +19,7 @@ N_CPUS = cpu_count()
 SEED = 28
 SEED2 = 14
 SAME_GRAPHS = False
+WEIGHTED = True
 
 GS = [
     lambda a, b : cp.sum(a)/b,
@@ -50,10 +51,12 @@ MODELS = [
 
 
 def create_C(lambdas, M, V):
+    N = lambdas.size
     lambdas_aux = np.insert(1/np.sqrt(lambdas[1:]),0,0)
     C_inv_sqrt = V@np.diag(lambdas_aux)@V.T
-    X = C_inv_sqrt@np.random.randn(lambdas.shape[0], M)
-    return X@X.T/M
+    # The shape of X is MxN, so it is X.T according to our notation
+    X = np.random.multivariate_normal(np.zeros(N), C_inv_sqrt, M)
+    return X.T@X/M
 
 
 def est_graph(id, alphas, betas, gammas, model, N, k, p, M, 
@@ -63,6 +66,9 @@ def est_graph(id, alphas, betas, gammas, model, N, k, p, M,
         A = nx.to_numpy_array(nx.watts_strogatz_graph(N, k, p, seed=SEED2))
     else:
         A = nx.to_numpy_array(nx.watts_strogatz_graph(N, k, p))
+    if WEIGHTED:
+        W = np.triu(np.random.rand(N, N)*3 + .1)
+        A = A*(W + W.T)
     L = np.diag(np.sum(A, 0)) - A
     lambdas, V = np.linalg.eigh(L)
     L_n = np.linalg.norm(L, 'fro')
@@ -120,22 +126,22 @@ def plot_err(err, alphas, betas, gammas, label='L'):
             plt.xticks(np.arange(len(betas)), betas)
             plt.ylabel('Gamma')
             plt.yticks(np.arange(len(gammas)), gammas)
-            plt.title('Err {}, Alpha: {}'.format(label, alphas[k]))
+            plt.title('Err {}, Alpha: {}'.format(label, alpha))
 
 
 if __name__ == "__main__":
     np.random.seed(SEED)
 
     # Regs
-    model = MODELS[6]
-    alphas = [0]
-    betas = [.1, .5, 1, 20] #np.arange(.4, .7, .1)
-    gammas = [0]
+    model = MODELS[1]
+    alphas = [0, .001, .01, .1]
+    betas = np.concatenate((np.arange(.1, .6, .1), [1, 5, 10]))
+    gammas = [0, 1, 5, 10, 25, 50, 100]
     print('Target model:', model['name'])
 
     # Model params
     n_graphs = 10
-    iters = 100
+    iters = 200
     M = 500
 
     # Graph params
@@ -146,6 +152,9 @@ if __name__ == "__main__":
 
     # Create graphs
     A0 = nx.to_numpy_array(nx.watts_strogatz_graph(N0, k, p, seed=SEED))
+    if WEIGHTED:
+        W0 = np.triu(np.random.rand(N0, N0)*3 + .1)
+        A0 = A0*(W0 + W0.T)
     L0 = np.diag(np.sum(A0, 0)) - A0
     lambdas0, _ = np.linalg.eigh(L0)
 
@@ -185,8 +194,8 @@ if __name__ == "__main__":
     print('Min err Lambd (Alpha: {:.3g}, Beta: {:.3g}, Gamma: {:.3g}): {:.6f}\t Err in L: {:.6f}'
         .format(alphas[idx[1]], betas[idx[0]], 0, mean_errl[0,:,:][idx], mean_errA[0,:,:][idx]))
 
-    plot_err(mean_errA, model, alphas, betas, gammas)
-    plot_err(mean_errl, model, alphas, betas, gammas, label='Lambd2')
+    plot_err(mean_errA, alphas, betas, gammas)
+    plot_err(mean_errl, alphas, betas, gammas, label='Lambd2')
     plt.show()
 
     # data = {
