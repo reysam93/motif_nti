@@ -35,7 +35,11 @@ BOUNDS = [
 ]
 
 # Create deltas as a dict indexed by k?
-DELTAS = [1e-3, .3, 0.005, .1]
+if G_TYPE == 'SW':
+    DELTAS = [1e-3, .3, 0.005, .1]
+else:
+    DELTAS = [1e-3, 10, 0.005, .1]
+
 
 MODELS = [
     # Ours
@@ -47,7 +51,7 @@ MODELS = [
     # Baselines
     {'name': 'GLasso', 'gs': [], 'bounds': [], 'regs': {}},
     {'name': 'MGL-Tr=1', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': DELTAS[0]}},
-    {'name': 'SGL', 'gs': [], 'regs': {'c1': .1, 'c2': 30, 'conn_comp': 1}},  # c1 and c2 obtained from min/max eigenvals 
+    {'name': 'SGL', 'gs': [], 'regs': {'c1': 1, 'c2': 25, 'conn_comp': 1}},  # c1 and c2 obtained from min/max eigenvals 
 ]
 
 
@@ -76,6 +80,7 @@ def est_graph(id, alphas, betas, gammas, model, graphs, M,
 
     L = np.diag(np.sum(A, 0)) - A
     lambdas, V = np.linalg.eigh(L)
+
     L_n = np.linalg.norm(L, 'fro')
     lambs_n = np.linalg.norm(lambdas, 2)
     C_hat = create_C(lambdas, M, V, graphs['B'])
@@ -83,7 +88,7 @@ def est_graph(id, alphas, betas, gammas, model, graphs, M,
     if model['name'] == 'MGL-Tr=1':
         model['cs'] = 1
     else:
-        model['cs'] = utils.compute_cs(model['gs'], lambdas0, lambdas)    
+        model['cs'] = utils.compute_cs(model['gs'], lambdas0, lambdas, True)    
 
     err_L = np.zeros((len(gammas), len(betas), len(alphas)))
     err_lam = np.zeros((len(gammas), len(betas), len(alphas)))
@@ -139,16 +144,16 @@ if __name__ == "__main__":
     assert G_TYPE in ['SW', 'SBM'], 'Unkown graph type.'
 
     # Regs
-    model = MODELS[1]
-    alphas = [0]
-    betas = np.concatenate((np.arange(.1, 1.1, .1), [5, 10, 25, 50]))
+    model = MODELS[4]
+    alphas = [1]
+    betas = np.concatenate((np.arange(.1, 1.1, .1), [2.5, 5, 7.5, 10, 25]))
     gammas = [1, 5, 10, 25, 50, 100, 500, 1000, 5000, 10000]
-    print('Target model:', model['name'])
+    print('Target model:', model['name'], 'Graph type:', G_TYPE)
 
     # Model params
     n_graphs = 10
     iters = 200
-    M = 500
+    M = 1000
 
     # Create graphs
     graphs = {'B': 1}
@@ -162,10 +167,10 @@ if __name__ == "__main__":
              nx.watts_strogatz_graph(graphs['N0'], graphs['k'], graphs['p'], seed=SEED))
     elif G_TYPE == 'SBM':
         # SBM graph params
-        graphs['B'] = 4
-        graphs['block_sizes0'] = [38]*4
-        graphs['block_sizes'] = [25]*4
-        graphs['p_in'] = .2
+        graphs['B'] = 5
+        graphs['block_sizes0'] = [30]*graphs['B']
+        graphs['block_sizes'] = [20]*graphs['B']
+        graphs['p_in'] = .3
         graphs['p_out'] = 0
         graphs['N0'] = sum(graphs['block_sizes0'])
         graphs['N'] = sum(graphs['block_sizes'])
@@ -173,7 +178,7 @@ if __name__ == "__main__":
              nx.random_partition_graph(graphs['block_sizes0'], graphs['p_in'], graphs['p_out']))
 
         if model['name'] == 'SGL':
-            model['conn_comp'] = graphs['B']
+            model['regs']['conn_comp'] = graphs['B']
 
     if WEIGHTED:
         W0 = np.triu(np.random.rand(graphs['N0'], graphs['N0'])*3 + .1)
