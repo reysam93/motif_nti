@@ -94,6 +94,12 @@ def compute_cs(gs, lambdas0, lambdas, verbose=False):
     return cs, np.abs(errs)
 
 
+def create_signals(L, M):
+    mean = np.zeros(L.shape[0])
+    L_pinv = np.linalg.pinv(L)
+    return np.random.multivariate_normal(mean, L_pinv, M).T
+
+
 def est_graph(C_hat, model, iters):
     if model['name'] == 'Pinv':
         L_hat = np.linalg.pinv(C_hat)
@@ -113,6 +119,7 @@ def est_graph(C_hat, model, iters):
         L_hat, _ = baselines.SGL(C_hat, model['regs'], max_iters=iters)
 
     else:
+        # Includes MGL models and Unconstrained
         L_hat, _ = snti.MGL(C_hat, model['gs'], model['bounds'], model['cs'],
                             model['regs'], max_iters=iters)
 

@@ -38,7 +38,7 @@ BOUNDS = [
 if G_TYPE == 'SW':
     DELTAS = [1e-3, .3, 0.005, .1]
 else:
-    DELTAS = [1e-3, 10, 0.005, .1]
+    DELTAS = [1e-3, 10, 0.003, 3]
 
 
 MODELS = [
@@ -52,19 +52,11 @@ MODELS = [
     {'name': 'GLasso', 'gs': [], 'bounds': [], 'regs': {}},
     {'name': 'MGL-Tr=1', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': DELTAS[0]}},
     {'name': 'SGL', 'gs': [], 'regs': {'c1': 1, 'c2': 25, 'conn_comp': 1}},  # c1 and c2 obtained from min/max eigenvals 
+    {'name': 'Unconst', 'gs': [], 'bounds': [], 'regs': {'deltas': []}},
 ]
 
 
-def create_C(lambdas, M, V, B):
-    N = lambdas.size
-    lambdas_aux = np.concatenate(([0]*B, 1/np.sqrt(lambdas[B:])))
-    C_inv_sqrt = V@np.diag(lambdas_aux)@V.T
-    # The shape of X is MxN, so it is X.T according to our notation
-    X = np.random.multivariate_normal(np.zeros(N), C_inv_sqrt, M)
-    return X.T@X/M
-
-
-def est_graph(id, alphas, betas, gammas, model, graphs, M, 
+def est_params(id, alphas, betas, gammas, model, graphs, M, 
               iters, lambdas0):
     # Create graph
     if G_TYPE == 'SW':
@@ -83,7 +75,9 @@ def est_graph(id, alphas, betas, gammas, model, graphs, M,
 
     L_n = np.linalg.norm(L, 'fro')
     lambs_n = np.linalg.norm(lambdas, 2)
-    C_hat = create_C(lambdas, M, V, graphs['B'])
+
+    X = utils.create_signals(L, M)
+    C_hat = X@X.T/M
 
     if model['name'] == 'MGL-Tr=1':
         model['cs'] = 1
@@ -144,10 +138,10 @@ if __name__ == "__main__":
     assert G_TYPE in ['SW', 'SBM'], 'Unkown graph type.'
 
     # Regs
-    model = MODELS[4]
-    alphas = [1]
-    betas = np.concatenate((np.arange(.1, 1.1, .1), [2.5, 5, 7.5, 10, 25]))
-    gammas = [1, 5, 10, 25, 50, 100, 500, 1000, 5000, 10000]
+    model = MODELS[6]
+    alphas = [.001, .005, .01, .05, .1]
+    betas = np.concatenate((np.arange(.1, 1.1, .1), [2, 5, 10, 25]))
+    gammas = [0] #[1, 5, 10, 25, 50, 100, 500, 1000, 5000, 10000]
     print('Target model:', model['name'], 'Graph type:', G_TYPE)
 
     # Model params
@@ -193,7 +187,7 @@ if __name__ == "__main__":
     err_lam = np.zeros((len(gammas), len(betas), len(alphas), n_graphs))
     
     pool = Parallel(n_jobs=N_CPUS)
-    errs = pool(delayed(est_graph)(i, alphas, betas, gammas, model, graphs, M,
+    errs = pool(delayed(est_params)(i, alphas, betas, gammas, model, graphs, M,
                                    iters, lambdas0) for i in range(n_graphs))
     for i, err in enumerate(errs):
         err_L[:,:,:,i], err_lam[:,:,:,i] = err
@@ -220,17 +214,4 @@ if __name__ == "__main__":
         .format(alphas[idx[1]], betas[idx[0]], 0, mean_errl[0,:,:][idx], mean_errA[0,:,:][idx]))
 
     plot_err(mean_errA, alphas, betas, gammas)
-    plot_err(mean_errl, alphas, betas, gammas, label='Lambd2')
     plt.show()
-
-    # data = {
-    #     'alphas': alphas,
-    #     'betas': betas,
-    #     'gammas': gammas,
-    #     # 'deltas': deltas,
-    #     'iters': iters,
-    #     'err_L': err_L,
-    #     'err_lam': err_lam
-    # }
-
-    # np.save('tmp\params_heat_M1000_i200_err', data)
