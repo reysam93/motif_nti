@@ -58,12 +58,17 @@ def SGL(C, regs, max_iters=100, epsilon=1e-4):
     w = utils.L_inv_op(L)
     lambdas, V = np.linalg.eigh(L)
     prev_L = L
+    prev_lam = lambdas
+
     for t in range(max_iters):
         # Step 1: closed form solution
         z = utils.Lstar_op(V@np.diag(lambdas)@V.T-1/regs['beta']*K)
         gradient = utils.Lstar_op(utils.L_op(w))-z
         w = np.maximum(0, w-gradient/(2*N))
         L = utils.L_op(w)
+        if np.all((w == 0)):
+            print('WARNING: L_hat is 0. Returning L from previous iteration')
+            return prev_L, prev_lam
 
         # Step 2: eigendecomposition of step 1
         _, V = np.linalg.eigh(L)
@@ -73,6 +78,7 @@ def SGL(C, regs, max_iters=100, epsilon=1e-4):
 
         L_conv = np.linalg.norm(L-prev_L, 'fro')/np.linalg.norm(prev_L, 'fro')
         prev_L = L
+        prev_lam = lambdas
         
         if L_conv < epsilon:
             print('CONVERGENCE AT ITERATION:', t)

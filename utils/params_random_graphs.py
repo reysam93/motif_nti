@@ -38,7 +38,7 @@ BOUNDS = [
 if G_TYPE == 'SW':
     DELTAS = [1e-3, .3, 0.005, .1]
 else:
-    DELTAS = [1e-3, 10, 0.003, 3]
+    DELTAS = [.7, 10, 0.003, 3]
 
 
 MODELS = [
@@ -61,7 +61,7 @@ def est_params(id, alphas, betas, gammas, model, graphs, M,
     # Create graph
     if G_TYPE == 'SW':
         A = nx.to_numpy_array(
-            nx.watts_strogatz_graph(graphs['N'], graphs['k'], graphs['p'], seed=SEED))
+            nx.watts_strogatz_graph(graphs['N'], graphs['k'], graphs['p']))
     elif G_TYPE == 'SBM':
         A = nx.to_numpy_array(
             nx.random_partition_graph(graphs['block_sizes0'], graphs['p_in'], graphs['p_out']))
@@ -138,10 +138,10 @@ if __name__ == "__main__":
     assert G_TYPE in ['SW', 'SBM'], 'Unkown graph type.'
 
     # Regs
-    model = MODELS[6]
-    alphas = [.001, .005, .01, .05, .1]
-    betas = np.concatenate((np.arange(.1, 1.1, .1), [2, 5, 10, 25]))
-    gammas = [0] #[1, 5, 10, 25, 50, 100, 500, 1000, 5000, 10000]
+    model = MODELS[7]
+    alphas = [0, .005, .001, .05, .01]
+    betas = np.concatenate((np.arange(.1, .6, .1), [1, 10, 25]))
+    gammas = [0] # [0, 1, 10, 50, 100, 500, 1000]
     print('Target model:', model['name'], 'Graph type:', G_TYPE)
 
     # Model params
