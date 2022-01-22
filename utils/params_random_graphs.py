@@ -19,7 +19,7 @@ N_CPUS = cpu_count()
 SEED = 28
 SEED2 = 14
 # G_TYPE in ['SW', 'SBM']
-G_TYPE = 'SBM'
+G_TYPE = 'SW'
 WEIGHTED = False
 
 GS = [
@@ -36,7 +36,7 @@ BOUNDS = [
 
 # Create deltas as a dict indexed by k?
 if G_TYPE == 'SW':
-    DELTAS = [1e-3, .3, 0.005, .1]
+    DELTAS = [1e-4, .3, 0.005, .1]
 else:
     DELTAS = [.7, 10, 0.003, 3]
 
@@ -53,6 +53,7 @@ MODELS = [
     {'name': 'MGL-Tr=1', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': DELTAS[0]}},
     {'name': 'SGL', 'gs': [], 'regs': {'c1': 1, 'c2': 25, 'conn_comp': 1}},  # c1 and c2 obtained from min/max eigenvals 
     {'name': 'Unconst', 'gs': [], 'bounds': [], 'regs': {'deltas': []}},
+    {'name': 'Pinv', 'gs': [], 'bounds': [], 'regs': {}}
 ]
 
 
@@ -71,7 +72,7 @@ def est_params(id, alphas, betas, gammas, model, graphs, M,
         A = A*(W + W.T)
 
     L = np.diag(np.sum(A, 0)) - A
-    lambdas, V = np.linalg.eigh(L)
+    lambdas, _ = np.linalg.eigh(L)
 
     L_n = np.linalg.norm(L, 'fro')
     lambs_n = np.linalg.norm(lambdas, 2)
@@ -138,16 +139,16 @@ if __name__ == "__main__":
     assert G_TYPE in ['SW', 'SBM'], 'Unkown graph type.'
 
     # Regs
-    model = MODELS[7]
-    alphas = [0, .005, .001, .05, .01]
-    betas = np.concatenate((np.arange(.1, .6, .1), [1, 10, 25]))
-    gammas = [0] # [0, 1, 10, 50, 100, 500, 1000]
+    model = MODELS[1]
+    alphas = [0, .001, .01, .1]
+    betas =  np.concatenate((np.arange(.1, .6, .1), [5, 10, 25]))
+    gammas = [0, 1, 10, 25, 50, 100, 500, 1000, 2500]
     print('Target model:', model['name'], 'Graph type:', G_TYPE)
 
     # Model params
     n_graphs = 10
     iters = 200
-    M = 1000
+    M = 500
 
     # Create graphs
     graphs = {'B': 1}
@@ -155,7 +156,7 @@ if __name__ == "__main__":
         # SW graph params
         graphs['N0'] = 150
         graphs['N'] = 100
-        graphs['k'] = 16
+        graphs['k'] = 4
         graphs['p'] = .1
         A0 = nx.to_numpy_array(
              nx.watts_strogatz_graph(graphs['N0'], graphs['k'], graphs['p'], seed=SEED))
