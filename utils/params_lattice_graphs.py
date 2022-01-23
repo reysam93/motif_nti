@@ -17,6 +17,7 @@ import spectral_nti as snti
 # CONSTANTS
 N_CPUS = cpu_count()
 SEED = 28
+WEIGHTED = True
 
 GS = [
     lambda a, b : cp.sum(a)/b,
@@ -45,7 +46,7 @@ MODELS = [
     # Baselines
     {'name': 'GLasso', 'gs': [], 'bounds': [], 'regs': {}},
     {'name': 'MGL-Tr=1', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': DELTAS[0]}},
-    {'name': 'SGL', 'gs': [], 'regs': {'c1': .01, 'c2': 10, 'conn_comp': 1}},  # c1 and c2 obtained from min/max eigenvals 
+    {'name': 'SGL', 'gs': [], 'regs': {'c1': .001, 'c2': 20, 'conn_comp': 1}},  # c1 and c2 obtained from min/max eigenvals 
 ]
 
 
@@ -116,28 +117,36 @@ if __name__ == "__main__":
     np.random.seed(SEED)
 
     # Regs
-    model = MODELS[7]
-    alphas = [0]
-    betas = [.25, .5, 1, 5, 10, 20]  #np.arange(.25, 3.1, .25)
-    gammas = [0]
+    model = MODELS[5]
+    alphas = [.001, .005, .01, .05, .1]
+    betas = [0]  #np.arange(.25, 3.1, .25)
+    gammas = [1000]
     print('Target model:', model['name'])
 
     # Model params
     n_covs = 10
-    iters = 200
+    iters = 100
     M = 1000
 
     # Graph params
     n01 = 15
     n02 = 10
+    N0 = n01*n02
     n1 = 20
     n2 = 10
+    N = n1*n2
 
     # Create graphs
     A0 = nx.to_numpy_array(nx.grid_2d_graph(n01, n02))
+    if WEIGHTED:
+        W0 = np.triu(np.random.rand(N0, N0)*3 + .1)
+        A0 = A0*(W0 + W0.T)
     L0 = np.diag(np.sum(A0, 0)) - A0
     lambdas0, _ = np.linalg.eigh(L0)
     A = nx.to_numpy_array(nx.grid_2d_graph(n1, n2))
+    if WEIGHTED:
+        W = np.triu(np.random.rand(N, N)*3 + .1)
+        A = A*(W + W.T)
     L = np.diag(np.sum(A, 0)) - A
     lambdas, V = np.linalg.eigh(L)
 
