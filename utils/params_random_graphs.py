@@ -19,7 +19,7 @@ N_CPUS = cpu_count()
 SEED = 28
 SEED2 = 14
 # G_TYPE in ['SW', 'SBM']
-G_TYPE = 'SW'
+G_TYPE = 'SBM'
 WEIGHTED = False
 
 GS = [
@@ -38,7 +38,7 @@ BOUNDS = [
 if G_TYPE == 'SW':
     DELTAS = [1e-4, .3, 0.005, .1]
 else:
-    DELTAS = [.7, 10, 0.003, 3]
+    DELTAS = [2.9, 45, 0.06, 11]
 
 
 MODELS = [
@@ -65,7 +65,7 @@ def est_params(id, alphas, betas, gammas, model, graphs, M,
             nx.watts_strogatz_graph(graphs['N'], graphs['k'], graphs['p']))
     elif G_TYPE == 'SBM':
         A = nx.to_numpy_array(
-            nx.random_partition_graph(graphs['block_sizes0'], graphs['p_in'], graphs['p_out']))
+            nx.random_partition_graph(graphs['block_sizes'], graphs['p'], graphs['q']))
 
     if WEIGHTED:
         W = np.triu(np.random.rand(graphs['N'], graphs['N'])*3 + .1)
@@ -81,9 +81,13 @@ def est_params(id, alphas, betas, gammas, model, graphs, M,
     C_hat = X@X.T/M
 
     if model['name'] == 'MGL-Tr=1':
-        model['cs'] = 1
+        model['cs'] = [1]
     else:
-        model['cs'] = utils.compute_cs(model['gs'], lambdas0, lambdas, True)    
+        model['cs'], _ = utils.compute_cs(model['gs'], lambdas0, lambdas, True)    
+
+    return
+
+    print('Cov-{}: min lamb: {:.3f} - max lamb: {:.3f}'.format(id, lambdas[1], lambdas[-1]))
 
     err_L = np.zeros((len(gammas), len(betas), len(alphas)))
     err_lam = np.zeros((len(gammas), len(betas), len(alphas)))
@@ -139,16 +143,16 @@ if __name__ == "__main__":
     assert G_TYPE in ['SW', 'SBM'], 'Unkown graph type.'
 
     # Regs
-    model = MODELS[1]
-    alphas = [0, .001, .01, .1]
-    betas =  np.concatenate((np.arange(.1, .6, .1), [5, 10, 25]))
-    gammas = [0, 1, 10, 25, 50, 100, 500, 1000, 2500]
+    model = MODELS[0]
+    alphas = [0]
+    betas =  np.arange(.4, 1.6, .1)  #np.concatenate((np.arange(.1, 1.6, .1), [2, 5, 10, 25, 30]))
+    gammas = [1, 100, 250, 500, 1000, 2500, 5000, 1e4]
     print('Target model:', model['name'], 'Graph type:', G_TYPE)
 
     # Model params
     n_graphs = 10
     iters = 200
-    M = 500
+    M = 1000
 
     # Create graphs
     graphs = {'B': 1}
@@ -160,20 +164,27 @@ if __name__ == "__main__":
         graphs['p'] = .1
         A0 = nx.to_numpy_array(
              nx.watts_strogatz_graph(graphs['N0'], graphs['k'], graphs['p'], seed=SEED))
+
+        if model['name'] == 'SGL':
+            model['regs']['c1'] = 0.01
+            model['regs']['c2'] =  graphs['k']*2.5
     elif G_TYPE == 'SBM':
         # SBM graph params
         graphs['B'] = 5
         graphs['block_sizes0'] = [30]*graphs['B']
         graphs['block_sizes'] = [20]*graphs['B']
-        graphs['p_in'] = .3
-        graphs['p_out'] = 0
+        graphs['p'] = .3
+        graphs['q0'] = 0
+        graphs['q'] = 1e-4
         graphs['N0'] = sum(graphs['block_sizes0'])
         graphs['N'] = sum(graphs['block_sizes'])
         A0 = nx.to_numpy_array(
-             nx.random_partition_graph(graphs['block_sizes0'], graphs['p_in'], graphs['p_out']))
+             nx.random_partition_graph(graphs['block_sizes0'], graphs['p'], graphs['q0']))
 
         if model['name'] == 'SGL':
             model['regs']['conn_comp'] = graphs['B']
+            model['regs']['c1'] = 1
+            model['regs']['c2'] = 20
 
     if WEIGHTED:
         W0 = np.triu(np.random.rand(graphs['N0'], graphs['N0'])*3 + .1)
