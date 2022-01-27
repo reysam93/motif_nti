@@ -36,7 +36,8 @@ BOUNDS = [
 ]
 
 DELTAS = [.13, .88, .002, .13]
-
+C1 = 0.01
+C2 = 10
 MODELS = [
     # Ours
     {'name': 'MGL-Tr', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': DELTAS[0]}},
@@ -47,7 +48,7 @@ MODELS = [
     # Baselines
     {'name': 'GLasso', 'gs': [], 'bounds': [], 'regs': {}},
     {'name': 'MGL-Tr=1', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': 1e-4}},
-    {'name': 'SGL', 'gs': [], 'regs': {'c1': 1, 'c2': 25, 'conn_comp': 1}},  # c1 and c2 obtained from min/max eigenvals 
+    {'name': 'SGL', 'gs': [], 'regs': {'c1': C1, 'c2': C2, 'conn_comp': 1}},  # c1 and c2 obtained from min/max eigenvals 
     {'name': 'Unconst', 'gs': [], 'bounds': [], 'regs': {'deltas': []}},
     {'name': 'Pinv', 'gs': [], 'bounds': [], 'regs': {}}
 ]
@@ -115,15 +116,15 @@ if __name__ == "__main__":
 
     # Regs
     model = MODELS[1]
-    alphas = [0]  # [0, .001, .005, .01, .05, .1, .5, 1]
-    betas =  np.arange(.5, 2.6, .1)  #np.concatenate((np.arange(.1, 1.6, .1), [2, 5, 10, 25, 30]))
-    gammas = [50, 100, 500, 1000, 2500, 5000, 1e4]
+    alphas = [0]
+    betas =  np.arange(.1, 1.6, .1)  #np.concatenate((np.arange(.1, 1.6, .1), [2, 5, 10, 25, 30]))
+    gammas = [500, 1000, 1e4]  # [1, 25, 50, 100, 1000]
     print('Target model:', model['name'])
 
     # Model params
     n_covs = 10
     iters = 100
-    M = 300
+    M = 100
 
     # Read graphs
     As = utils.get_student_networks_graphs(GRAPH_IDX, DATASET_PATH)
@@ -134,9 +135,18 @@ if __name__ == "__main__":
     L = np.diag(np.sum(A, 0)) - A
     lambdas, _ = np.linalg.eigh(L)
 
-    model['cs'], err_cs = utils.compute_cs(model['gs'], lambdas0, lambdas, True)
-    if BETTER_DELTAS:
-        model['regs']['deltas'] = err_cs*1.1
+    conn_comp = np.sum(lambdas <= 1e-6)
+    if model['name'] == 'SGL':
+        model['regs']['conn_comp'] = conn_comp
+    print('Connected components:', conn_comp)
+    print('Max eigv:', lambdas[-1], 'Min eigv:', lambdas[conn_comp])
+
+    if model['name'] != 'MGL-Tr=1':
+        model['cs'], err_cs = utils.compute_cs(model['gs'], lambdas0, lambdas, True)
+        if BETTER_DELTAS:
+            model['regs']['deltas'] = err_cs*1.1
+    else:
+        model['cs'] = 1
 
     t = time.time()
     print("CPUs used:", N_CPUS)
