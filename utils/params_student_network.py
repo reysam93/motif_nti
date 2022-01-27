@@ -18,8 +18,8 @@ import spectral_nti as snti
 N_CPUS = cpu_count()
 SEED = 28
 
-# GRAPH_IDX = [9,7]
 GRAPH_IDX = [10,8]
+# GRAPH_IDX = [9,7]
 DATASET_PATH = '../data/student_networks/'
 BETTER_DELTAS = False
 
@@ -35,9 +35,15 @@ BOUNDS = [
     lambda lamd, lamd_t, b: 1/b*(0.75-2*0.25*lamd_t).T@lamd,
 ]
 
-DELTAS = [.13, .88, .002, .13]
-C1 = 0.01
-C2 = 10
+if GRAPH_IDX == [10,8]:
+    DELTAS = [.13, .88, .002, .13]
+    C1 =0.01
+    C2 = 10
+elif GRAPH_IDX == [9,7]:
+    DELTAS = [.03, .88, .002, .08]
+    C1 = 0.1
+    C2 = 8
+
 MODELS = [
     # Ours
     {'name': 'MGL-Tr', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': DELTAS[0]}},
@@ -48,7 +54,7 @@ MODELS = [
     # Baselines
     {'name': 'GLasso', 'gs': [], 'bounds': [], 'regs': {}},
     {'name': 'MGL-Tr=1', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': 1e-4}},
-    {'name': 'SGL', 'gs': [], 'regs': {'c1': C1, 'c2': C2, 'conn_comp': 1}},  # c1 and c2 obtained from min/max eigenvals 
+    {'name': 'SGL', 'gs': [], 'regs': {'c1': C1, 'c2': C2, 'conn_comp': 1}},
     {'name': 'Unconst', 'gs': [], 'bounds': [], 'regs': {'deltas': []}},
     {'name': 'Pinv', 'gs': [], 'bounds': [], 'regs': {}}
 ]
@@ -115,10 +121,10 @@ if __name__ == "__main__":
     np.random.seed(SEED)
 
     # Regs
-    model = MODELS[1]
+    model = MODELS[3]
     alphas = [0]
-    betas =  np.arange(.1, 1.6, .1)  #np.concatenate((np.arange(.1, 1.6, .1), [2, 5, 10, 25, 30]))
-    gammas = [500, 1000, 1e4]  # [1, 25, 50, 100, 1000]
+    betas = np.arange(.1, 1.6, .1)  #np.concatenate((np.arange(.1, 1.6, .1), [2, 5, 10, 25, 30]))
+    gammas = [0]  #[100, 500,  1000, 2500, 5000, 7500, 1e4, 2.5e4]  # [1, 25, 50, 100, 1000]
     print('Target model:', model['name'])
 
     # Model params
