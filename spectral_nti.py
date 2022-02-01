@@ -4,12 +4,6 @@ import numpy as np
 import utils
 
 
-# def SGL(C, g_funcs, cs, regs, max_iters=100, epsilon=1e-6, verbose=False):
-#     regs_aux = regs.copy()
-#     regs_aux['gamma'] = 0
-#     return SGL_MM(C, g_funcs, [], cs, regs_aux, max_iters, epsilon, verbose)
-
-
 def step3(d, lambdas, g_funcs, up_bounds, cs, rs):
     # Step 3: solved with cvx
     N = lambdas.shape[0]
@@ -58,8 +52,9 @@ def MGL(C, g_funcs, up_bounds, cs, regs, max_iters=100, epsilon=1e-4,
         g_funcs = [g_funcs]
     if not isinstance(cs, list) and np.isscalar(cs):
         cs = [cs]
-    if not isinstance(regs['deltas'], list) and np.isscalar(regs['deltas']):
-        regs['deltas'] = [regs['deltas']]
+    if 'deltas' in regs.keys():
+        if not isinstance(regs['deltas'], list) and np.isscalar(regs['deltas']):
+            regs['deltas'] = [regs['deltas']]
     if not isinstance(up_bounds, list):
         up_bounds = [up_bounds]
     
