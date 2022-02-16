@@ -22,6 +22,7 @@ GRAPH_IDX = [10,8]
 # GRAPH_IDX = [9,7]
 DATASET_PATH = '../data/student_networks/'
 BETTER_DELTAS = False
+TRUE_GRAPH = True       # Set the true graph as the reference graph
 
 GS = [
     lambda a, b : cp.sum(a)/b,
@@ -37,7 +38,7 @@ BOUNDS = [
 
 if GRAPH_IDX == [10,8]:
     DELTAS = [.13, .88, .002, .13]
-    C1 =0.01
+    C1 = 0.01
     C2 = 10
 elif GRAPH_IDX == [9,7]:
     DELTAS = [.03, .88, .002, .08]
@@ -121,15 +122,15 @@ if __name__ == "__main__":
     np.random.seed(SEED)
 
     # Regs
-    model = MODELS[3]
-    alphas = [0]
-    betas = np.arange(.1, 1.6, .1)  #np.concatenate((np.arange(.1, 1.6, .1), [2, 5, 10, 25, 30]))
-    gammas = [0]  #[100, 500,  1000, 2500, 5000, 7500, 1e4, 2.5e4]  # [1, 25, 50, 100, 1000]
+    model = MODELS[0]
+    alphas = [0]  # [0, .01, .1]
+    betas = np.arange(.5, 1.6, .1)  #np.concatenate((np.arange(.1, 1.6, .1), [2, 5, 10, 25, 30]))
+    gammas = [0]  #[1, 10, 100, 1000]  #[1000, 5000, 1e4, 5e4, 1e5]  # [1, 25, 50, 100, 1000]
     print('Target model:', model['name'])
 
     # Model params
     n_covs = 10
-    iters = 100
+    iters = 200
     M = 100
 
     # Read graphs
@@ -146,6 +147,10 @@ if __name__ == "__main__":
         model['regs']['conn_comp'] = conn_comp
     print('Connected components:', conn_comp)
     print('Max eigv:', lambdas[-1], 'Min eigv:', lambdas[conn_comp])
+
+    if TRUE_GRAPH:
+        model['regs']['deltas'] = 0
+        lambdas0 = lambdas
 
     if model['name'] != 'MGL-Tr=1':
         model['cs'], err_cs = utils.compute_cs(model['gs'], lambdas0, lambdas, True)

@@ -19,8 +19,10 @@ N_CPUS = cpu_count()
 SEED = 28
 SEED2 = 14
 # G_TYPE in ['SW', 'SBM']
-G_TYPE = 'SBM'
+G_TYPE = 'SW'
 WEIGHTED = False
+BETTER_DELTAS = False
+TRUE_GRAPH = True       # Set the true graph as the reference graph
 
 GS = [
     lambda a, b : cp.sum(a)/b,
@@ -37,6 +39,7 @@ BOUNDS = [
 # Create deltas as a dict indexed by k?
 if G_TYPE == 'SW':
     DELTAS = [1e-4, .3, 0.005, .1]
+    # DELTAS = [0, .3, 0.005, .1]
 else:
     DELTAS = [2.9, 45, 0.06, 11]
 
@@ -50,7 +53,7 @@ MODELS = [
 
     # Baselines
     {'name': 'GLasso', 'gs': [], 'bounds': [], 'regs': {}},
-    {'name': 'MGL-Tr=1', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': DELTAS[0]}},
+    {'name': 'MGL-Tr=1', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': 1e-4}},
     {'name': 'SGL', 'gs': [], 'regs': {'c1': 1, 'c2': 25, 'conn_comp': 1}},  # c1 and c2 obtained from min/max eigenvals 
     {'name': 'Unconst', 'gs': [], 'bounds': [], 'regs': {'deltas': []}},
     {'name': 'Pinv', 'gs': [], 'bounds': [], 'regs': {}}
@@ -65,7 +68,8 @@ def est_params(id, alphas, betas, gammas, model, graphs, M,
             nx.watts_strogatz_graph(graphs['N'], graphs['k'], graphs['p']))
     elif G_TYPE == 'SBM':
         A = nx.to_numpy_array(
-            nx.random_partition_graph(graphs['block_sizes'], graphs['p'], graphs['q']))
+            # nx.random_partition_graph(graphs['block_sizes'], graphs['p'], graphs['q']))
+            nx.random_partition_graph(graphs['block_sizes0'], graphs['p'], graphs['q']))
 
     if WEIGHTED:
         W = np.triu(np.random.rand(graphs['N'], graphs['N'])*3 + .1)
@@ -77,17 +81,19 @@ def est_params(id, alphas, betas, gammas, model, graphs, M,
     L_n = np.linalg.norm(L, 'fro')
     lambs_n = np.linalg.norm(lambdas, 2)
 
+    if TRUE_GRAPH:
+        model['regs']['deltas'] = 1e-4
+        lambdas0 = lambdas
+
     X = utils.create_signals(L, M)
     C_hat = X@X.T/M
 
     if model['name'] == 'MGL-Tr=1':
         model['cs'] = [1]
     else:
-        model['cs'], _ = utils.compute_cs(model['gs'], lambdas0, lambdas, True)    
-
-    return
-
-    print('Cov-{}: min lamb: {:.3f} - max lamb: {:.3f}'.format(id, lambdas[1], lambdas[-1]))
+        model['cs'], err_cs = utils.compute_cs(model['gs'], lambdas0, lambdas, True)    
+        if BETTER_DELTAS:
+            model['regs']['deltas'] = err_cs*1.1
 
     err_L = np.zeros((len(gammas), len(betas), len(alphas)))
     err_lam = np.zeros((len(gammas), len(betas), len(alphas)))
@@ -143,10 +149,10 @@ if __name__ == "__main__":
     assert G_TYPE in ['SW', 'SBM'], 'Unkown graph type.'
 
     # Regs
-    model = MODELS[0]
-    alphas = [0]
-    betas =  np.arange(.4, 1.6, .1)  #np.concatenate((np.arange(.1, 1.6, .1), [2, 5, 10, 25, 30]))
-    gammas = [1, 100, 250, 500, 1000, 2500, 5000, 1e4]
+    model = MODELS[3]
+    alphas = [0] #[0, .001, .005, .01, .05]
+    betas =  np.arange(1, 2.1, .1)  #np.concatenate((np.arange(.1, 1.6, .1), [2, 5, 10, 25, 30]))
+    gammas =  [500, 1000, 2500, 5000, 1e4]
     print('Target model:', model['name'], 'Graph type:', G_TYPE)
 
     # Model params
@@ -172,15 +178,14 @@ if __name__ == "__main__":
         # SBM graph params
         graphs['B'] = 5
         graphs['block_sizes0'] = [30]*graphs['B']
-        graphs['block_sizes'] = [20]*graphs['B']
+        graphs['block_sizes'] = [30]*graphs['B']
         graphs['p'] = .3
         graphs['q0'] = 0
-        graphs['q'] = 1e-4
+        graphs['q'] = 0
         graphs['N0'] = sum(graphs['block_sizes0'])
         graphs['N'] = sum(graphs['block_sizes'])
         A0 = nx.to_numpy_array(
-             nx.random_partition_graph(graphs['block_sizes0'], graphs['p'], graphs['q0']))
-
+             nx.random_partition_graph(graphs['block_sizes0'], graphs['p'], graphs['q0'], seed=SEED))
         if model['name'] == 'SGL':
             model['regs']['conn_comp'] = graphs['B']
             model['regs']['c1'] = 1
