@@ -22,11 +22,12 @@ def step3(d, lambdas, g_funcs, up_bounds, cs, rs):
     for up_bound in up_bounds:
         up_bounds_obj += rs['gamma']*up_bound(lambdas_hat, lambdas[1:], N)
 
-    obj = cp.Minimize(cp.sum(-cp.log(lambdas_hat)) \
-         + rs['beta']/2*cp.sum_squares(lambdas_hat-d) + up_bounds_obj)
+    obj = cp.Minimize(cp.sum(-cp.log(lambdas_hat))
+                      + rs['beta']/2*cp.sum_squares(lambdas_hat-d) 
+                      + up_bounds_obj)
 
     prob = cp.Problem(obj, contraints)
-    try:      
+    try:
         prob.solve()
     except cp.SolverError:
         # print('WARNING: solver error. Returning lambda from previous iteration.')

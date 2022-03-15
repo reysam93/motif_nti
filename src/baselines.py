@@ -9,7 +9,7 @@ def step3(d, lambdas, rs):
     # Step 3: solved with cvx
     N = lambdas.shape[0]
     lambdas_hat = cp.Variable(N-rs['conn_comp'])  # Fisrt eigenvalues are 0
-    
+
     # contraints = []
     # for i in range(lambdas_hat.size):
     #     if i == (lambdas_hat.size-1):

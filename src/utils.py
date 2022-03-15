@@ -1,19 +1,22 @@
 import numpy as np
 from sklearn.covariance import graphical_lasso
+import sys
 
+sys.path.insert(0, './src')
 import spectral_nti as snti
 import baselines
 
-# Laplacian operator    
+
+# Laplacian operator
 def L_op(w):
     k = w.size
     N = int((1 + np.sqrt(1+8*k))/2)
-    
+
     idx = np.triu_indices(N, k=1)
-    A = np.zeros((N,N))
+    A = np.zeros((N, N))
     A[idx] = w
     A = A + A.T
-    return np.diag(np.sum(A,0)) - A
+    return np.diag(np.sum(A, 0)) - A
 
 
 # Inverse of the Laplacian operator
