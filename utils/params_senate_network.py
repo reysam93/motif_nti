@@ -126,7 +126,7 @@ if __name__ == "__main__":
 
     # Model params
     n_covs = 50
-    iters = 200
+    iters = 500
     M = 200
 
     # Read graphs and signals
