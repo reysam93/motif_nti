@@ -10,8 +10,7 @@ import sys
 from os import cpu_count
 
 sys.path.insert(0, '..')
-import utils
-import spectral_nti as snti
+import src.utils as utils
 
 
 # CONSTANTS

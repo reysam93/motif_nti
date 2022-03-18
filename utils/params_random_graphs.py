@@ -10,8 +10,7 @@ import sys
 from os import cpu_count
 
 sys.path.insert(0, '..')
-import utils
-import spectral_nti as snti
+import src.utils as utils
 
 
 # CONSTANTS
@@ -19,10 +18,10 @@ N_CPUS = cpu_count()
 SEED = 28
 SEED2 = 14
 # G_TYPE in ['SW', 'SBM']
-G_TYPE = 'SW'
+G_TYPE = 'SBM'
 WEIGHTED = False
 BETTER_DELTAS = False
-TRUE_GRAPH = True       # Set the true graph as the reference graph
+TRUE_GRAPH = False       # Set the true graph as the reference graph
 
 GS = [
     lambda a, b : cp.sum(a)/b,
@@ -82,7 +81,7 @@ def est_params(id, alphas, betas, gammas, model, graphs, M,
     lambs_n = np.linalg.norm(lambdas, 2)
 
     if TRUE_GRAPH:
-        model['regs']['deltas'] = 1e-4
+        model['regs']['deltas'] = 1e-6
         lambdas0 = lambdas
 
     X = utils.create_signals(L, M)
@@ -151,14 +150,14 @@ if __name__ == "__main__":
     # Regs
     model = MODELS[3]
     alphas = [0] #[0, .001, .005, .01, .05]
-    betas =  np.arange(1, 2.1, .1)  #np.concatenate((np.arange(.1, 1.6, .1), [2, 5, 10, 25, 30]))
-    gammas =  [500, 1000, 2500, 5000, 1e4]
+    betas =  np.arange(.1, 1.1, .1)  #np.concatenate((np.arange(.1, 1.6, .1), [2, 5, 10, 25, 30]))
+    gammas =  [10, 100, 500, 1000]
     print('Target model:', model['name'], 'Graph type:', G_TYPE)
 
     # Model params
     n_graphs = 10
     iters = 200
-    M = 1000
+    M = 200
 
     # Create graphs
     graphs = {'B': 1}

@@ -9,9 +9,7 @@ import sys
 from os import cpu_count
 
 sys.path.insert(0, '..')
-import utils
-import spectral_nti as snti
-
+import src.utils as utils
 
 # CONSTANTS
 N_CPUS = cpu_count()
@@ -31,9 +29,12 @@ BOUNDS = [
     lambda lamd, lamd_t, b: 1/b*(0.75-2*0.25*lamd_t).T@lamd,
 ]
 
-DELTAS = [.86, 9, .05, 1.7]
-C1 =0.01
-C2 = 20
+# DELTAS = [.86, 9, .05, 1.7]
+# C1 = 0.01
+# C2 = 20
+DELTAS = [1.2, 13, .06, 2.3]
+C1 = 0.05     # True: 0.07
+C2 = 16.5     # True: 16.37
 
 MODELS = [
     # Ours
@@ -47,7 +48,11 @@ MODELS = [
     {'name': 'MGL-Tr=1', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': 1e-4}},
     {'name': 'SGL', 'gs': [], 'regs': {'c1': C1, 'c2': C2, 'conn_comp': 1}},
     {'name': 'Unconst', 'gs': [], 'bounds': [], 'regs': {'deltas': []}},
-    {'name': 'Pinv', 'gs': [], 'bounds': [], 'regs': {}}
+
+    # Combinations
+    {'name': 'MGL-Poly+Heat+Tr', 'gs': [GS[0], GS[2], GS[3]],
+     'bounds': [BOUNDS[0], BOUNDS[1], BOUNDS[2]], 
+     'regs': {'deltas': [DELTAS[0], DELTAS[2], DELTAS[3]]}},
 ]
 
 
@@ -56,7 +61,6 @@ def est_params(id, alphas, betas, gammas, model, X_M, L,
     L_n = np.linalg.norm(L, 'fro')
     lambs_n = np.linalg.norm(lambdas, 2)
 
-    # X = np.random.permutation(X.T).T
     # C_hat = np.cov(X[:,1:M])
     C_hat = np.cov(X_M)
     # print('Norm C:', np.linalg.norm(C_hat))
@@ -114,14 +118,14 @@ if __name__ == "__main__":
     np.random.seed(SEED)
 
     # Regs
-    model = MODELS[0]
-    alphas = [0]  # [0, .01, .1]
-    betas = np.arange(.5, 1.6, .1)  #np.concatenate((np.arange(.1, 1.6, .1), [2, 5, 10, 25, 30]))
-    gammas = [0]  #[1, 10, 100, 1000]  #[1000, 5000, 1e4, 5e4, 1e5]  # [1, 25, 50, 100, 1000]
+    model = MODELS[3]
+    alphas = [0]
+    betas = np.concatenate((np.arange(.1, 1.1, .1), [5]))
+    gammas = [500, 1e3, 5e3, 1e4]
     print('Target model:', model['name'])
 
     # Model params
-    n_covs = 10
+    n_covs = 50
     iters = 200
     M = 200
 
