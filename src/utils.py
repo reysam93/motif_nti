@@ -155,12 +155,17 @@ def get_student_networks_graphs(graphs_idx, path):
     return As
 
 def error_to_csv(fname, models, xaxis, error):
-    header = 'xaxis, '
+    header = ''
+    data = error
+    
+    if xaxis:
+        data = np.concatenate((xaxis.reshape([xaxis.size, 1]), error.T), axis=1)
+        header = 'xaxis, '  
+
     for i, model in enumerate(models):
         header += model['name']
         if i < len(models)-1:
             header += ', '
 
-    data = np.concatenate((xaxis.reshape([xaxis.size, 1]), error.T), axis=1)
     np.savetxt(fname, data, delimiter=',', header=header, comments='')
     print('SAVED as:', fname)
