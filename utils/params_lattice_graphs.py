@@ -10,8 +10,7 @@ from os import cpu_count
 import sys 
 
 sys.path.insert(0, '..')
-import utils
-import spectral_nti as snti
+import src.utils as utils
 
 
 # CONSTANTS
@@ -24,7 +23,7 @@ GS = [
     lambda a, b : cp.sum(a**2)/b,
     lambda a, b : cp.sum(cp.exp(-a))/b,
     lambda a, b : cp.sum(cp.sqrt(a))/b,
-    lambda a, b : cp.sum(.25*a**2-.75*a)/b,
+    lambda a, b : cp.sum((.5*a-.75)**2)/b,
 ]
 BOUNDS = [
     lambda lamd, lamd_t, b : -2/b*lamd_t.T@lamd,
@@ -41,7 +40,7 @@ MODELS = [
     {'name': 'MGL-Sq', 'gs': GS[1], 'bounds': BOUNDS[0], 'regs': {'deltas': DELTAS[1]}},
     {'name': 'MGL-Heat', 'gs': GS[2], 'bounds': BOUNDS[1], 'regs': {'deltas': DELTAS[2]}},
     {'name': 'MGL-Sqrt', 'gs': GS[3], 'bounds': BOUNDS[2], 'regs': {'deltas': DELTAS[3]}},
-    {'name': 'MGL-Poly', 'gs': GS[4], 'bounds': BOUNDS[3], 'regs': {'deltas': DELTAS[4]}},
+    {'name': 'MGL-BR', 'gs': GS[4], 'bounds': BOUNDS[3], 'regs': {'deltas': DELTAS[4]}},
 
     # Baselines
     {'name': 'GLasso', 'gs': [], 'bounds': [], 'regs': {}},
@@ -75,14 +74,10 @@ def est_graph(id, alphas, betas, gammas, C_hat,
 
                 A_hat = np.diag(np.diag(L_hat)) - L_hat
                 lamd_hat, _ = np.linalg.eigh(L_hat)
+                lamd_hat_norm = lamd_hat/np.linalg.norm(lamd_hat)
 
                 err_A[i,j,k] = np.linalg.norm(A-A_hat,'fro')**2/A_n**2
-                err_lam[i,j,k] = np.linalg.norm(lambdas-lamd_hat)**2/lambs_n**2
-
-                # A_hat /= np.linalg.norm(A_hat, 'fro')
-                # lamd_hat /= np.linalg.norm(lamd_hat, 2)
-                # err_A[i,j,k] = np.linalg.norm(A/A_n-A_hat,'fro')**2
-                # err_lam[i,j,k] = np.linalg.norm(lambdas/lambs_n-lamd_hat)**2
+                err_lam[i,j,k] = np.linalg.norm(lambdas/lambs_n-lamd_hat_norm)**2
 
                 print('Cov-{}: Alpha {}, Beta {}, Gamma, {}: ErrA: {:.3f}'.
                       format(id, alpha, beta, gamma, err_A[i,j,k]))
@@ -117,14 +112,14 @@ if __name__ == "__main__":
     np.random.seed(SEED)
 
     # Regs
-    model = MODELS[5]
-    alphas = [.001, .005, .01, .05, .1]
-    betas = [0]  #np.arange(.25, 3.1, .25)
-    gammas = [1000]
+    model = MODELS[4]
+    alphas = [0, .01]
+    betas = np.arange(.5, 1.5, .5)
+    gammas = [100, 500, 1000, 2500, 5e3, 1e4]
     print('Target model:', model['name'])
 
     # Model params
-    n_covs = 10
+    n_covs = 50
     iters = 100
     M = 1000
 

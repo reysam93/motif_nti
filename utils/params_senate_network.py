@@ -21,7 +21,7 @@ GS = [
     lambda a, b : cp.sum(a)/b,
     lambda a, b : cp.sum(a**2)/b,
     lambda a, b : cp.sum(cp.exp(-a))/b,
-    lambda a, b : cp.sum(.25*a**2-.75*a)/b,
+    lambda a, b : cp.sum((.5*a-.75)**2)/b,
 ]
 BOUNDS = [
     lambda lamd, lamd_t, b : -2/b*lamd_t.T@lamd,
@@ -41,7 +41,7 @@ MODELS = [
     {'name': 'MGL-Tr', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': DELTAS[0]}},
     {'name': 'MGL-Sq', 'gs': GS[1], 'bounds': BOUNDS[0], 'regs': {'deltas': DELTAS[1]}},
     {'name': 'MGL-Heat', 'gs': GS[2], 'bounds': BOUNDS[1], 'regs': {'deltas': DELTAS[2]}},
-    {'name': 'MGL-Poly', 'gs': GS[3], 'bounds': BOUNDS[2], 'regs': {'deltas': DELTAS[3]}},
+    {'name': 'MGL-BR', 'gs': GS[3], 'bounds': BOUNDS[2], 'regs': {'deltas': DELTAS[3]}},
 
     # Baselines
     {'name': 'GLasso', 'gs': [], 'bounds': [], 'regs': {}},
@@ -50,7 +50,7 @@ MODELS = [
     {'name': 'Unconst', 'gs': [], 'bounds': [], 'regs': {'deltas': []}},
 
     # Combinations
-    {'name': 'MGL-Poly+Heat+Tr', 'gs': [GS[0], GS[2], GS[3]],
+    {'name': 'MGL-BR+Heat+Tr', 'gs': [GS[0], GS[2], GS[3]],
      'bounds': [BOUNDS[0], BOUNDS[1], BOUNDS[2]], 
      'regs': {'deltas': [DELTAS[0], DELTAS[2], DELTAS[3]]}},
 ]

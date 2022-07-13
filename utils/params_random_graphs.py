@@ -18,7 +18,7 @@ N_CPUS = cpu_count()
 SEED = 28
 SEED2 = 14
 # G_TYPE in ['SW', 'SBM']
-G_TYPE = 'SBM'
+G_TYPE = 'SW'
 WEIGHTED = False
 BETTER_DELTAS = False
 TRUE_GRAPH = False       # Set the true graph as the reference graph
@@ -27,7 +27,7 @@ GS = [
     lambda a, b : cp.sum(a)/b,
     lambda a, b : cp.sum(a**2)/b,
     lambda a, b : cp.sum(cp.exp(-a))/b,
-    lambda a, b : cp.sum(.25*a**2-.75*a)/b,
+    lambda a, b : cp.sum((.5*a-.75)**2)/b,
 ]
 BOUNDS = [
     lambda lamd, lamd_t, b : -2/b*lamd_t.T@lamd,
@@ -48,14 +48,14 @@ MODELS = [
     {'name': 'MGL-Tr', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': DELTAS[0]}},
     {'name': 'MGL-Sq', 'gs': GS[1], 'bounds': BOUNDS[0], 'regs': {'deltas': DELTAS[1]}},
     {'name': 'MGL-Heat', 'gs': GS[2], 'bounds': BOUNDS[1], 'regs': {'deltas': DELTAS[2]}},
-    {'name': 'MGL-Poly', 'gs': GS[3], 'bounds': BOUNDS[2], 'regs': {'deltas': DELTAS[3]}},
+    {'name': 'MGL-RB', 'gs': GS[3], 'bounds': BOUNDS[2], 'regs': {'deltas': DELTAS[3]}},
 
     # Baselines
     {'name': 'GLasso', 'gs': [], 'bounds': [], 'regs': {}},
     {'name': 'MGL-Tr=1', 'gs': GS[0], 'bounds': [], 'regs': {'deltas': 1e-4}},
     {'name': 'SGL', 'gs': [], 'regs': {'c1': 1, 'c2': 25, 'conn_comp': 1}},  # c1 and c2 obtained from min/max eigenvals 
     {'name': 'Unconst', 'gs': [], 'bounds': [], 'regs': {'deltas': []}},
-    {'name': 'Pinv', 'gs': [], 'bounds': [], 'regs': {}}
+    {'name': 'Pinv', 'gs': [], 'bounds': [], 'regs': {}},
 ]
 
 
@@ -149,15 +149,15 @@ if __name__ == "__main__":
 
     # Regs
     model = MODELS[3]
-    alphas = [0] #[0, .001, .005, .01, .05]
-    betas =  np.arange(.1, 1.1, .1)  #np.concatenate((np.arange(.1, 1.6, .1), [2, 5, 10, 25, 30]))
-    gammas =  [10, 100, 500, 1000]
+    alphas = [0, .01]
+    betas =  np.arange(.5, 1.5, .1)  #np.concatenate((np.arange(.1, 1.6, .1), [2, 5, 10, 25, 30]))
+    gammas =  [1000, 5000, 10000, 50000, 1e5]
     print('Target model:', model['name'], 'Graph type:', G_TYPE)
 
     # Model params
-    n_graphs = 10
+    n_graphs = 50
     iters = 200
-    M = 200
+    M = 1000
 
     # Create graphs
     graphs = {'B': 1}
