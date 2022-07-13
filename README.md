@@ -1,5 +1,5 @@
 # Motif-based Graph Learning
-This repository includes the code associated with the paper "[Enhanced graph-learning schemes driven by similar distributions of motifs](Enhanced graph-learning schemes driven by similar distributions of motifs)", by Samuel Rey, T. Mitchell Roddenberry, Santiago Segarra, and Antonio G. Marques in the `master` branch.
+This repository includes the code associated with the paper "[Enhanced graph-learning schemes driven by similar distributions of motifs](https://arxiv.org/abs/2207.04747)", by Samuel Rey, T. Mitchell Roddenberry, Santiago Segarra, and Antonio G. Marques in the `master` branch.
 
 
 ## Abstract
