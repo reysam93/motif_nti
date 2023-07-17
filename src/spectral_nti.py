@@ -109,41 +109,151 @@ def MGL(C, g_funcs, up_bounds, cs, regs, max_iters=100, epsilon=1e-4,
     return L, lambdas
 
 
-# def SGL_trace(C, c, regs):
-#     N = C.shape[0]
-#     alpha = regs['alpha']
-#     delta = regs['deltas']
+def step1_GMRF_st(C, S, prev_Theta, eta):
+    Theta_hat = cp.Variable(prev_Theta.shape, PSD=True)
+    constraints = []
+    obj_fn = cp.trace(C @ Theta_hat) - cp.log_det(Theta_hat) + eta*cp.sum_squares(Theta_hat @ S - S @ Theta_hat)
+
+    prob = cp.Problem(cp.Minimize(obj_fn), constraints)
+    try:
+        prob.solve()
+    except cp.SolverError:
+        # print('WARNING: solver error. Returning lambda from previous iteration.')
+        return prev_Theta, 'solver_error'
+
+    if prob.status not in ['optimal', 'optimal_inaccurate']:
+        print('WARNING: problem status', prob.status)
+    else:
+        Theta = Theta_hat.value
+
+    return Theta, prob.status
+
+
+def step2_GMRF_st(Theta, V, lambdas, prev_L, regs):
+    beta = regs['beta']
+    alpha = regs['alpha']
+    eta = regs['eta']
+
+    L_eig = V @ np.diag(lambdas) @ V.T
+    L_hat = cp.Variable(prev_L.shape, PSD=True)
+    constraints = [cp.diag(L_hat) >= 0, L_hat[~np.eye(L_hat.shape[0], dtype=bool)] <= 0]
+
+    obj_fn = beta*cp.sum_squares(L_hat - L_eig) + alpha*cp.sum(cp.diag(L_hat))
+    obj_fn += eta*cp.sum_squares(Theta @ L_hat - L_hat @ Theta)
+
+    prob = cp.Problem(cp.Minimize(obj_fn), constraints)
+    try:
+        prob.solve()
+    except cp.SolverError:
+        # print('WARNING: solver error. Returning lambda from previous iteration.')
+        return prev_L, 'solver_error'
+
+    if prob.status not in ['optimal', 'optimal_inaccurate']:
+        print('WARNING: problem status', prob.status)
+    else:
+        L = L_hat.value
+
+    return L, prob.status
     
-#     K = C + alpha*(2*np.eye(N)-np.ones((N,N)))
 
-#     L_hat = cp.Variable((N, N), PSD=True)
-#     constraint = [(cp.trace(L_hat)/N-c)**2 <= delta,
-#                   cp.sum(L_hat, axis=0) == 0,
-#                   L_hat[np.eye(N, dtype=bool)] >= 0,
-#                   L_hat[~np.eye(N, dtype=bool) <= 0]]
+def step4_GMRF_st(d, lambdas, g_funcs, up_bounds, cs, rs):
+    N = lambdas.shape[0]
+    lambdas_hat = cp.Variable(N-1)  # Fisrt eigenvalue is 0
+    contraints = []
+    for i, g_func in enumerate(g_funcs):
+        expr = g_func(lambdas_hat, N)
+        if expr.curvature == "AFFINE":
+            contraints.append((expr - cs[i])**2 <= rs['deltas'][i]**2)
+        elif expr.curvature == "CONCAVE":
+            contraints.append((expr - cs[i]) >= -rs['deltas'][i])
+        else:
+            contraints.append((expr - cs[i]) <= rs['deltas'][i])
 
-#     obj = cp.Minimize(-cp.log_det(L_hat)+cp.trace(K@L_hat))
-#     prob = cp.Problem(obj, constraint)
-#     prob.solve()
+    up_bounds_obj = 0
+    for up_bound in up_bounds:
+        up_bounds_obj += rs['gamma']*up_bound(lambdas_hat, lambdas[1:], N)
 
-#     return L_hat.value
+    obj = cp.Minimize(rs['beta']/2*cp.sum_squares(lambdas_hat-d) + up_bounds_obj)
+
+    prob = cp.Problem(obj, contraints)
+    try:
+        prob.solve()
+    except cp.SolverError:
+        # print('WARNING: solver error. Returning lambda from previous iteration.')
+        return lambdas, 'solver_error'
+
+    if prob.status not in ['optimal', 'optimal_inaccurate']:
+        print('WARNING: problem status', prob.status)
+    else:
+        lambdas = np.concatenate(([0], lambdas_hat.value))
+
+    return lambdas, prob.status
 
 
-# def SGL_no_const(C, alpha):
-#     N = C.shape[0]
+def MGL_Stationary_GMRF(C, g_funcs, up_bounds, cs, regs, max_iters=100, epsilon=1e-4,
+           verbose=False):
+    """
+    Motif graph learning algorithm assuming that data comes from a GMRF whose precision matrix
+    is given by a polynomial of the GSO
+    """
+    N = C.shape[0]
+
+    # Check inputs
+    if not isinstance(g_funcs, list):
+        g_funcs = [g_funcs]
+    if not isinstance(cs, list) and np.isscalar(cs):
+        cs = [cs]
+    if 'deltas' in regs.keys():
+        if not isinstance(regs['deltas'], list) and np.isscalar(regs['deltas']):
+            regs['deltas'] = [regs['deltas']]
+    if not isinstance(up_bounds, list):
+        up_bounds = [up_bounds]
     
-#     K = C + alpha*(2*np.eye(N)-np.ones((N,N)))
+    L = np.linalg.pinv(C, rcond=1e-6, hermitian=True)
+    L = np.where(L > 0, 0, L)
+    L[np.eye(N, dtype=bool)] = -1*np.sum(L,1)
 
-#     L_hat = cp.Variable((N, N), symmetric=True)
-#     constraint = [cp.sum(L_hat, axis=0) == 0,
-#                   L_hat[np.diag_indices(N)] >= 0,
-#                   L_hat[~np.eye(N,dtype=bool) <= 0]]
+    prev_Theta = L
+    lambdas, V = np.linalg.eigh(L)
+    prev_L = L
+    prev_lam = lambdas
 
-#     obj = cp.Minimize(-cp.log_det(L_hat)+cp.trace(K@L_hat))
-#     prob = cp.Problem(obj, constraint)
-#     prob.solve()
+    for t in range(max_iters):
+        # Step 1: estimate precision matrix Theta
+        Theta, _ = step1_GMRF_st(C, L, prev_Theta, regs['eta'])
 
-#     return L_hat.value
+        # Step 2: estimate L
+        L, _ = step2_GMRF_st(Theta, V, lambdas, prev_L, regs)
+
+        # Step 3: eigendecomposition of step 2
+        _, V = np.linalg.eigh(L)
+
+        # Step 4: estimate lambdas
+        d = np.diag(V.T@L@V)[1:]
+        lambdas, prob_status = step4_GMRF_st(d, lambdas, g_funcs, up_bounds, cs, regs)
+
+        L_conv = np.linalg.norm(L-prev_L, 'fro')/np.linalg.norm(prev_L, 'fro')
+        lambd_conv = np.linalg.norm(lambdas-prev_lam, 2)**2/np.linalg.norm(prev_lam, 2)**2
+        prev_lam = lambdas
+        prev_L = L
+
+        regs['eta'] *= regs['inc_eta']
+
+        if verbose:
+            sim_Ls = np.linalg.norm(L-V@np.diag(lambdas)@V.T,'fro')
+            print('{}. status: {} - L_cnv: {:.6f} - Lam_cnv: {:.3f} - L-VLambdaL\': {:.3f}'.
+                format(t, prob_status, L_conv, lambd_conv, sim_Ls))
+            
+            for i, g_func in enumerate(g_funcs):
+                c_aux =  g_func(lambdas, N).value
+                print('\t- Bound {}:  g(lamd): {:.3f}   g(lamd)-c: {:.3f}'.
+                    format(i, c_aux, np.abs(cs[i] - c_aux)))
+        
+        if L_conv < epsilon:
+            print('CONVERGENCE AT ITERATION:', t)
+            break
+
+    return L, lambdas
 
 
 

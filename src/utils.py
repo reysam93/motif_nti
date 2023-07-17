@@ -103,6 +103,19 @@ def create_signals(L, M):
     L_pinv = np.linalg.pinv(L)
     return np.random.multivariate_normal(mean, L_pinv, M).T
 
+def create_GMRF_st_signals(L, K, M):
+    h = np.random.rand(K)
+    h = h / np.linalg.norm(h)
+    eigvals_S, eigvecs_S = np.linalg.eigh(L)
+    psi = np.fliplr(np.vander(eigvals_S, K))
+
+    eigvals_H = psi @ h
+    H = eigvecs_S @ np.diag(eigvals_H) @ eigvecs_S.T
+    H_pinv = np.linalg.pinv(H)
+    mean = np.zeros(L.shape[0])
+
+    return np.random.multivariate_normal(mean, H_pinv, M).T
+
 
 def est_graph(C_hat, model, iters):
     if model['name'] == 'Pinv':
@@ -122,10 +135,13 @@ def est_graph(C_hat, model, iters):
     elif model['name'] == 'SGL':
         L_hat, _ = baselines.SGL(C_hat, model['regs'], max_iters=iters)
 
+    # elif model['name'] == 'MGL-st':
+    #     L_hat, _ = snti.MGL_Stationary_GMRF(C_hat, model['gs'], model['bounds'], 
+    #                                         model['cs'], model['regs'], max_iters=iters)
     else:
         # Includes MGL models and Unconstrained
         L_hat, _ = snti.MGL(C_hat, model['gs'], model['bounds'], model['cs'],
-                            model['regs'], max_iters=iters)
+                          model['regs'], max_iters=iters)
 
     lamd_hat, _ = np.linalg.eigh(L_hat)
 
