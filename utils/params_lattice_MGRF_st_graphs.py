@@ -10,13 +10,15 @@ from os import cpu_count
 import sys 
 
 sys.path.insert(0, '..')
+sys.path.insert(0, '.')
 import src.utils as utils
+import src.spectral_nti as snti
 
 
 # CONSTANTS
 N_CPUS = cpu_count()
 SEED = 28
-WEIGHTED = True
+WEIGHTED = False
 
 GS = [
     lambda a, b : cp.sum(a)/b,
@@ -33,7 +35,7 @@ BOUNDS = [
 ]
 
 # DELTAS  = [.04, .27, .003, .02, 0.05]
-DELTAS = [.4, 2.5, .003, .2, .5]
+DELTAS = [.3, 2.1, .003, .1, .35]
 
 MODELS = [
     # Ours
@@ -68,8 +70,8 @@ def est_graph(id, alphas, betas, gammas, etas, incs_eta,
                     for m, inc_eta in enumerate(incs_eta):
                         model['regs']['inc_eta'] = inc_eta
                 
-                        L_hat, _ = snti.MGL(C_hat, model['gs'], model['bounds'],
-                                            model['cs'], model['regs'], iters)
+                        L_hat, _ = snti.MGL_Stationary_GMRF(C_hat, model['gs'], model['bounds'],
+                                                            model['cs'], model['regs'], iters)
                         lamd_hat, _ = np.linalg.eigh(L_hat)
 
                         A_hat = np.diag(np.diag(L_hat)) - L_hat
@@ -80,7 +82,7 @@ def est_graph(id, alphas, betas, gammas, etas, incs_eta,
                         err_lam[i,j,k,l,m] = np.linalg.norm(lambdas/lambs_n-lamd_hat_norm)**2
 
                         print('Cov-{}: Alpha {}, Beta {}, Gamma, {} Eta: {}, Inc: {}: ErrA: {:.3f}'.
-                              format(id, alpha, beta, gamma, eta, inc_eta, err_A[i,j,k]))
+                              format(id, alpha, beta, gamma, eta, inc_eta, err_A[i,j,k,l,m]))
     return err_A, err_lam
 
 
@@ -116,15 +118,15 @@ if __name__ == "__main__":
     alphas = [0]
     betas = [1]
     gammas = [1]
-    etas = [.1, 1, 10]
-    incs_eta =  [1.1, 1.25, 1.5]
+    etas = [.1, 1, 10, 50]
+    incs_eta = [1.1, 1.25, 1.5]
     print('Target model:', model['name'])
 
     # Model params
-    n_covs = 2 # 50
-    iters = 25
-    M = 200
-    K = 3
+    n_covs = 50
+    iters = 50
+    M = 100
+    K = 4
 
     # Graph params
     n01 = 10
@@ -155,8 +157,8 @@ if __name__ == "__main__":
 
     t = time.time()
     print("CPUs used:", N_CPUS)
-    err_A = np.zeros((len(gammas), len(betas), len(alphas), n_covs))
-    err_lam = np.zeros((len(gammas), len(betas), len(alphas), n_covs))
+    err_A = np.zeros((len(gammas), len(betas), len(alphas), len(etas), len(incs_eta), n_covs))
+    err_lam = np.zeros((len(gammas), len(betas), len(alphas), len(etas), len(incs_eta), n_covs))
     
     pool = Parallel(n_jobs=N_CPUS)
     errs = pool(delayed(est_graph)(i, alphas, betas, gammas, etas, incs_eta, 
@@ -166,8 +168,8 @@ if __name__ == "__main__":
         err_A[:,:,:,i], err_lam[:,:,:,i] = err
     print('----- {} mins -----'.format((time.time()-t)/60))
 
-    mean_errA = np.mean(err_A, 3)
-    mean_errl = np.mean(err_lam, 3)
+    mean_errA = np.mean(err_A, 5)
+    mean_errl = np.mean(err_lam, 5)
 
     # Print
     idx = np.unravel_index(np.argmin(mean_errA), mean_errA.shape)
