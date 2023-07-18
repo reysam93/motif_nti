@@ -249,7 +249,7 @@ def MGL_Stationary_GMRF(C, g_funcs, up_bounds, cs, regs, max_iters=100, epsilon=
                 print('\t- Bound {}:  g(lamd): {:.3f}   g(lamd)-c: {:.3f}'.
                     format(i, c_aux, np.abs(cs[i] - c_aux)))
         
-        if L_conv < epsilon:
+        if t > 0 and L_conv < epsilon:
             print('CONVERGENCE AT ITERATION:', t)
             break
 
