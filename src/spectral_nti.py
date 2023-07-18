@@ -109,8 +109,8 @@ def MGL(C, g_funcs, up_bounds, cs, regs, max_iters=100, epsilon=1e-4,
     return L, lambdas
 
 
-def step1_GMRF_st(C, S, prev_Theta, eta):
-    Theta_hat = cp.Variable(prev_Theta.shape, PSD=True)
+def step1_GMRF_st(C, S, Theta, eta):
+    Theta_hat = cp.Variable(Theta.shape, PSD=True)
     constraints = []
     obj_fn = cp.trace(C @ Theta_hat) - cp.log_det(Theta_hat) + eta*cp.sum_squares(Theta_hat @ S - S @ Theta_hat)
 
@@ -119,7 +119,7 @@ def step1_GMRF_st(C, S, prev_Theta, eta):
         prob.solve()
     except cp.SolverError:
         # print('WARNING: solver error. Returning lambda from previous iteration.')
-        return prev_Theta, 'solver_error'
+        return Theta, 'solver_error'
 
     if prob.status not in ['optimal', 'optimal_inaccurate']:
         print('WARNING: problem status', prob.status)
@@ -129,13 +129,13 @@ def step1_GMRF_st(C, S, prev_Theta, eta):
     return Theta, prob.status
 
 
-def step2_GMRF_st(Theta, V, lambdas, prev_L, regs):
+def step2_GMRF_st(Theta, V, lambdas, L, regs):
     beta = regs['beta']
     alpha = regs['alpha']
     eta = regs['eta']
 
     L_eig = V @ np.diag(lambdas) @ V.T
-    L_hat = cp.Variable(prev_L.shape, PSD=True)
+    L_hat = cp.Variable(L.shape, PSD=True)
     constraints = [cp.diag(L_hat) >= 0, L_hat[~np.eye(L_hat.shape[0], dtype=bool)] <= 0]
 
     obj_fn = beta*cp.sum_squares(L_hat - L_eig) + alpha*cp.sum(cp.diag(L_hat))
@@ -146,7 +146,7 @@ def step2_GMRF_st(Theta, V, lambdas, prev_L, regs):
         prob.solve()
     except cp.SolverError:
         # print('WARNING: solver error. Returning lambda from previous iteration.')
-        return prev_L, 'solver_error'
+        return L, 'solver_error'
 
     if prob.status not in ['optimal', 'optimal_inaccurate']:
         print('WARNING: problem status', prob.status)
