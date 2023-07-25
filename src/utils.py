@@ -174,9 +174,8 @@ def error_to_csv(fname, models, xaxis, error):
     header = ''
     data = error
     
-    if xaxis:
-        data = np.concatenate((xaxis.reshape([xaxis.size, 1]), error.T), axis=1)
-        header = 'xaxis, '  
+    data = np.concatenate((xaxis.reshape([xaxis.size, 1]), error.T), axis=1)
+    header = 'xaxis, '  
 
     for i, model in enumerate(models):
         header += model['name']
